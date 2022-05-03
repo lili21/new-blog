@@ -1,4 +1,5 @@
 import { Octokit } from '@octokit/core'
+import { marked } from 'marked'
 
 const client = new Octokit({
   auth: process.env.GITHUB_ACCESS_TOKEN
@@ -6,12 +7,33 @@ const client = new Octokit({
 
 export const getAllBlogs = async () => {
   const result = await client.request('GET /repos/{owner}/{repo}/issues', {
-    owner: 'lili.21',
+    owner: 'lili21',
     repo: 'new-blog',
-    creator: 'lili.21'
+    creator: 'lili21'
   })
 
-  return result;
+  return result.data.map(({number, id, title, created_at}) => ({
+    number,
+    id,
+    title,
+    created_at
+  }));
+}
+
+export const getBlogDetail = async (number) => {
+  const { data: { title, body, created_at, html_url } } = await client.request('GET /repos/{owner}/{repo}/issues/{issue_number}', {
+    owner: 'lili21',
+    repo: 'new-blog',
+    creator: 'lili21',
+    issue_number: number
+  })
+
+  return {
+    title,
+    html: marked.parse(body),
+    created_at,
+    html_url
+  };
 }
 
 export default client;
