@@ -1,5 +1,16 @@
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-size: 16px;
+  letter-spacing: 0.5px;
+}
+
 #root {
   max-width: 42rem;
   margin: 0 auto;
   padding: 42px 21px;
+}
+
+img {
+  width: 100%;
+  height: auto;
 }
