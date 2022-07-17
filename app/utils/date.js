@@ -1,8 +1,8 @@
-const dateTimeFormater = new Intl.DateTimeFormat('default', {
-  year: 'numeric', month: 'numeric', day: 'numeric',
-  weekday: 'long',
-  dayPeriod: 'short'
-})
+const dateTimeFormater = new Intl.DateTimeFormat("default", {
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
 
 export function format(dateString) {
   const date = new Date(dateString);

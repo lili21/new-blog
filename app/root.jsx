@@ -1,4 +1,5 @@
 import {
+  Link,
   Links,
   LiveReload,
   Meta,
@@ -7,14 +8,19 @@ import {
   ScrollRestoration,
 } from "@remix-run/react";
 
-import styleUrl from '~/styles/global.css'
+import styleUrl from "~/styles/global.css";
+import normalizeStyle from "~/styles/normalize.css";
 
 export const links = () => [
   {
-    rel: 'stylesheet',
-    href: styleUrl
-  }
-]
+    rel: "stylesheet",
+    href: normalizeStyle,
+  },
+  {
+    rel: "stylesheet",
+    href: styleUrl,
+  },
+];
 
 export const meta = () => ({
   charset: "utf-8",
@@ -31,7 +37,19 @@ export default function App() {
       </head>
       <body>
         <div id="root">
-          <Outlet />
+          <header className="header">
+            <Link to="/">
+              <img
+                className="avatar"
+                src="https://pbs.twimg.com/profile_images/1271262722491944960/0aEwCy1g_400x400.jpg"
+                alt="avatar"
+              />
+            </Link>
+            <Link to="/about">About Me</Link>
+          </header>
+          <main className="main">
+            <Outlet />
+          </main>
         </div>
         <ScrollRestoration />
         <Scripts />

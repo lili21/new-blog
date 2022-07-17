@@ -1,3 +1,29 @@
+ol {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style-type: none;
+  gap: 16px;
+}
+
+li {
+  display: flex;
+  gap: 6px;
+}
+
+li a {
+  padding-left: 6px;
+  text-decoration: none;
+  color: rgb(23, 23, 23);
+}
+
+li span {
+  color: rgb(133, 133, 133);
+}
+
+
+
 .title a {
   /* font-size: 1.75rem; */
   text-decoration: none;
