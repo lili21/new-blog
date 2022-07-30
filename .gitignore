@@ -10,3 +10,5 @@ node_modules
 /api/index.js
 
 api/
+
+.DS_Store

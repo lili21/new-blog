@@ -10,6 +10,7 @@ import {
 
 import styleUrl from "~/styles/global.css";
 import normalizeStyle from "~/styles/normalize.css";
+import avatar from "~/images/avatar.jepg";
 
 export const links = () => [
   {
@@ -24,7 +25,7 @@ export const links = () => [
 
 export const meta = () => ({
   charset: "utf-8",
-  title: "New Remix App",
+  title: "Blog",
   viewport: "width=device-width,initial-scale=1",
 });
 
@@ -39,11 +40,7 @@ export default function App() {
         <div id="root">
           <header className="header">
             <Link to="/">
-              <img
-                className="avatar"
-                src="https://pbs.twimg.com/profile_images/1271262722491944960/0aEwCy1g_400x400.jpg"
-                alt="avatar"
-              />
+              <img className="avatar" src={avatar} alt="avatar" />
             </Link>
             <Link to="/about">About Me</Link>
           </header>
