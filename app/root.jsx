@@ -10,7 +10,7 @@ import {
 
 import styleUrl from "~/styles/global.css";
 import normalizeStyle from "~/styles/normalize.css";
-import avatar from "~/images/avatar.jepg";
+import avatar from "~/images/avatar.jpeg";
 
 export const links = () => [
   {
