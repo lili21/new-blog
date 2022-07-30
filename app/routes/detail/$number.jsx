@@ -38,7 +38,7 @@ export default function Detail() {
       <p>
         {format(data.created_at)}{" "}
         <a href={data.html_url} target="_blank" rel="noreferrer">
-          source
+          评论
         </a>
       </p>
       <main dangerouslySetInnerHTML={{ __html: data.html }} />
