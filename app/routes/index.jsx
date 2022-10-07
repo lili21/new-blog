@@ -32,7 +32,9 @@ function Article({ html_url, number, title, html, created_at }) {
   return (
     <li>
       <span>{format(created_at)}</span>
-      <Link to={`/detail/${number}`}>{title}</Link>
+      <Link prefetch="intent" to={`/detail/${number}`}>
+        {title}
+      </Link>
     </li>
   );
 }
