@@ -21,7 +21,7 @@ export default function Index() {
       <h2>文章</h2>
       <ol>
         {data.map((d) => (
-          <Article {...d} key={d.id} />
+          <Article key={d.id} {...d} />
         ))}
       </ol>
     </div>
