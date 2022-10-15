@@ -12,3 +12,5 @@ node_modules
 api/
 
 .DS_Store
+
+fly.toml
