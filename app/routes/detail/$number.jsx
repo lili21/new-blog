@@ -25,6 +25,14 @@ export const loader = ({ params }) => {
   return getBlogDetail(params.number);
 };
 
+const d = 60 * 60 * 24 * 7;
+
+export const headers = () => {
+  return {
+    "Cache-Control": `max-age=${d}`,
+  };
+};
+
 export default function Detail() {
   const data = useLoaderData();
   // console.log(data);
