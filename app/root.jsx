@@ -7,6 +7,7 @@ import {
   Scripts,
   ScrollRestoration,
 } from "@remix-run/react";
+import { MetronomeLinks } from "@metronome-sh/react";
 
 import styleUrl from "~/styles/global.css";
 import normalizeStyle from "~/styles/normalize.css";
@@ -35,6 +36,7 @@ export default function App() {
       <head>
         <Meta />
         <Links />
+        <MetronomeLinks />
       </head>
       <body>
         <div id="root">

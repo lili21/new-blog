@@ -1,4 +1,18 @@
 import { createRequestHandler } from "@remix-run/vercel";
 import * as build from "@remix-run/dev/server-build";
+import {
+  createMetronomeGetLoadContext,
+  registerMetronome,
+} from "@metronome-sh/vercel";
+const buildWithMetronome = registerMetronome(build);
 
-export default createRequestHandler({ build, mode: process.env.NODE_ENV });
+const metronomeGetLoadContext = createMetronomeGetLoadContext(
+  buildWithMetronome,
+  { config: require("./metronome.config.js") }
+);
+
+export default createRequestHandler({
+  build: buildWithMetronome,
+  getLoadContext: metronomeGetLoadContext,
+  mode: process.env.NODE_ENV,
+});
