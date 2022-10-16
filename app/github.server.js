@@ -16,12 +16,14 @@ export const getAllBlogs = async () => {
   });
 
   return json(
-    result.data.map(({ number, id, title, created_at }) => ({
-      number,
-      id,
-      title,
-      created_at,
-    }))
+    result.data
+      .filter((d) => !d.pull_request)
+      .map(({ number, id, title, created_at }) => ({
+        number,
+        id,
+        title,
+        created_at,
+      }))
   );
 };
 
