@@ -1,6 +1,10 @@
 import { Octokit } from "@octokit/core";
 import { marked } from "marked";
 import { json } from "@remix-run/node";
+import { bundleMDX } from "mdx-bundler";
+import fs from "fs";
+import { remarkCodeHike } from "@code-hike/mdx";
+import theme from "shiki/themes/nord.json";
 
 const client = new Octokit({
   auth: process.env.GITHUB_ACCESS_TOKEN,
@@ -24,21 +28,49 @@ export const getAllBlogs = async () => {
 };
 
 export const getBlogDetail = async (number) => {
-  const {
-    data: { title, body, created_at, html_url },
-  } = await client.request("GET /repos/{owner}/{repo}/issues/{issue_number}", {
-    owner: "lili21",
-    repo: "new-blog",
-    creator: "lili21",
-    issue_number: number,
-  });
+  try {
+    const {
+      data: { title, body, created_at, html_url },
+    } = await client.request(
+      "GET /repos/{owner}/{repo}/issues/{issue_number}",
+      {
+        owner: "lili21",
+        repo: "new-blog",
+        creator: "lili21",
+        issue_number: number,
+      }
+    );
 
-  return json({
-    title,
-    html: marked.parse(body),
-    created_at,
-    html_url,
-  });
+    const result = await bundleMDX({
+      source: body,
+      mdxOptions(options, frontmatter) {
+        // this is the recommended way to add custom remark/rehype plugins:
+        // The syntax might look weird, but it protects you in case we add/remove
+        // plugins in the future.
+        options.remarkPlugins = [
+          ...(options.remarkPlugins ?? []),
+          [
+            remarkCodeHike,
+            {
+              showCopyButton: true,
+              theme,
+            },
+          ],
+        ];
+
+        return options;
+      },
+    });
+
+    return json({
+      title,
+      result,
+      created_at,
+      html_url,
+    });
+  } catch (e) {
+    throw json({ error: e }, { status: 500 });
+  }
 };
 
 export default client;
