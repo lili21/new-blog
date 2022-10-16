@@ -3,7 +3,7 @@ import { marked } from "marked";
 import { json } from "@remix-run/node";
 
 const client = new Octokit({
-  auth: process.env.GITHUB_ACCESS_TOKEN,
+  auth: "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",
 });
 
 export const getAllBlogs = async () => {
