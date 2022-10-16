@@ -1,8 +1,6 @@
 import { Octokit } from "@octokit/core";
-import { marked } from "marked";
 import { json } from "@remix-run/node";
 import { bundleMDX } from "mdx-bundler";
-import fs from "fs";
 import { remarkCodeHike } from "@code-hike/mdx";
 import theme from "shiki/themes/nord.json";
 
