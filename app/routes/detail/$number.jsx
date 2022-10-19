@@ -1,23 +1,34 @@
-import { useLoaderData } from "@remix-run/react";
-import { useEffect } from "react";
-// import hljs from 'highlight.js'
-import hljs from "highlight.js/lib/core";
-import javascript from "highlight.js/lib/languages/javascript";
-import css from "highlight.js/lib/languages/css";
-import html from "highlight.js/lib/languages/xml";
-import highlightStyle from "highlight.js/styles/night-owl.css";
+import { useCatch, useLoaderData } from "@remix-run/react";
+import { useMemo } from "react";
+import { getMDXComponent } from "mdx-bundler/client";
 
 import { getBlogDetail } from "~/github.server";
 import { format } from "~/utils/date";
+import codeHideStyle from "@code-hike/mdx/dist/index.css";
 
-hljs.registerLanguage("javascript", javascript);
-hljs.registerLanguage("css", css);
-hljs.registerLanguage("html", html);
+export const CatchBoundary = () => {
+  const {
+    data: { error },
+  } = useCatch();
+
+  const message = useMemo(() => {
+    const { message, errors } = error;
+    if (message) {
+      return message;
+    }
+
+    if (Array.isArray(errors)) {
+      return errors.map((e) => e.text).join("\n");
+    }
+  }, [error]);
+
+  return <div className="catch">{message}</div>;
+};
 
 export const links = () => [
   {
     rel: "stylesheet",
-    href: highlightStyle,
+    href: codeHideStyle,
   },
 ];
 
@@ -35,21 +46,21 @@ export const headers = () => {
 
 export default function Detail() {
   const data = useLoaderData();
-  // console.log(data);
-  useEffect(() => {
-    hljs.highlightAll();
-  }, []);
+  const { code, frontmatter } = data.result;
 
+  const Component = useMemo(() => getMDXComponent(code), [code]);
   return (
     <article>
       <h1>{data.title}</h1>
       <p>
-        {format(data.created_at)}{" "}
+        {format(frontmatter.published ?? data.created_at)}{" "}
         <a href={data.html_url} target="_blank" rel="noreferrer">
           评论
         </a>
       </p>
-      <main dangerouslySetInnerHTML={{ __html: data.html }} />
+      <main>
+        <Component />
+      </main>
     </article>
   );
 }
