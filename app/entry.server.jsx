@@ -1,15 +1,5 @@
 import { RemixServer } from "@remix-run/react";
 import { renderToString } from "react-dom/server";
-import path from "path";
-import fs from "fs";
-
-const shiki_l = path.resolve(process.cwd(), "node_modules/shiki/languages");
-
-fs.readFile(path.resolve(shiki_l, "abap.tmLanguage.json"));
-fs.readFile(path.resolve(shiki_l, "css.tmLanguage.json"));
-fs.readFile(path.resolve(shiki_l, "html.tmLanguage.json"));
-fs.readFile(path.resolve(shiki_l, "javascript.tmLanguage.json"));
-fs.readFile(path.resolve(shiki_l, "jsx.tmLanguage.json"));
 
 export default function handleRequest(
   request,
