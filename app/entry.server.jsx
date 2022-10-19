@@ -1,6 +1,12 @@
 import { RemixServer } from "@remix-run/react";
 import { renderToString } from "react-dom/server";
 
+import x from "shiki/languages/abap.tmLanguage.json";
+import a from "shiki/languages/css.tmLanguage.json";
+import b from "shiki/languages/html.tmLanguage.json";
+import c from "shiki/languages/javascript.tmLanguage.json";
+import d from "shiki/languages/jsx.tmLanguage.json";
+
 export default function handleRequest(
   request,
   responseStatusCode,
