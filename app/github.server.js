@@ -5,7 +5,7 @@ import { remarkCodeHike } from "@code-hike/mdx";
 import theme from "shiki/themes/nord.json";
 
 const client = new Octokit({
-  auth: "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",
+  auth: process.env.GITHUB_ACCESS_TOKEN,
 });
 
 export const getAllBlogs = async () => {
