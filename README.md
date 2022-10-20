@@ -1,4 +1,4 @@
 # Personal Blog
-> build with remix
+> Power by remix and codehide
 
-[site](https://new-blog-liard.vercel.app/)
+[blog.lili21.me](https://blog.lili21.me)
