@@ -39,7 +39,7 @@ export default function Index() {
 function Article({ html_url, number, title, html, created_at }) {
   return (
     <li>
-      {/* <span>{format(created_at)}</span> */}
+      <span>{format(created_at)}</span>
       <Link prefetch="intent" to={`/detail/${number}`}>
         {title}
       </Link>
