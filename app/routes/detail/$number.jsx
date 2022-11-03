@@ -1,10 +1,11 @@
 import { useCatch, useLoaderData } from "@remix-run/react";
-import { useMemo } from "react";
-import { getMDXComponent } from "mdx-bundler/client";
+import { Suspense, useMemo, lazy } from "react";
 
 import { getBlogDetail } from "~/github.server";
 import { format } from "~/utils/date";
 import codeHideStyle from "@code-hike/mdx/dist/index.css";
+
+const MDXComponent = lazy(() => import("~/components/MDXComponent"));
 
 export const CatchBoundary = () => {
   const {
@@ -46,9 +47,8 @@ export const headers = () => {
 
 export default function Detail() {
   const data = useLoaderData();
-  const { code, frontmatter } = data.result;
+  const { frontmatter } = data.result;
 
-  const Component = useMemo(() => getMDXComponent(code), [code]);
   return (
     <article>
       <h1>{data.title}</h1>
@@ -59,7 +59,9 @@ export default function Detail() {
         </a>
       </p>
       <main>
-        <Component />
+        <Suspense fallback={null}>
+          <MDXComponent />
+        </Suspense>
       </main>
     </article>
   );
