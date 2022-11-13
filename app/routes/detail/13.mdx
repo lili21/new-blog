@@ -1,0 +1,339 @@
+---
+published: 2022-05-04
+meta:
+  title: Suspense, data fetching以及状态管理 - Jotai介绍
+---
+
+`Suspense`相信大家都不陌生了，但我想大部分人使用的场景都仅仅是组件的异步加载
+
+```jsx
+const AboutPage = React.lazy(() => import('./pages/about'))
+
+const App = () => {
+  return (
+  <React.Suspense fallback={<div>loading...</div>}>
+    <AboutPage />
+  </React.Suspense>
+  )
+}
+```
+
+但其实`Suspense`也是支持用于`data fetching`的，只是该特性还处于实验阶段，所以大家实践的不多。刚好我最近对此比较感兴趣，同时有一个新的项目要做，没有啥历史包袱，就果断的用上了。
+
+`Suspense`其实只是一个data fetching的机制，data fetching的实现还是要自己做的。实际项目中，服务端的数据基本上都是需要状态管理的。所以我们需要的其实是一个支持 `suspense`的状态管理库 - 这就是今天要介绍的 [Jotai](https://jotai.org/)了。
+
+## Jotai简介
+
+这里简单介绍一下Jotai的一些基本概念和使用方法。Jotai的理念和[Recoil](https://recoiljs.org/)类似，是一种自下而上的状态管理机制。主要的概念就是「基础原子」- `primitive atom` 和基于「基础原子」生成的「派生原子」- `derived atom`
+
+```js
+import { atom } from 'jotai'
+
+// 基础原子
+const count1 = atom(1)
+const count2 = atom(2)
+const count3 = atom(3)
+
+// 派生原子 - 基于基础原子生成 - 基础原子的更新会触发派生原子的更新
+const sum = atom((get) => get(count1) + get(count2) + get(count3))
+```
+
+使用上也非常简单, 和`useState`类似
+
+```jsx
+import { atom, useAtom } from 'jotai';
+
+const count1 = atom(1)
+
+const App = () => {
+  const [count, setCount] = useAtom(count1)
+
+  return (
+    <div>
+      {count}
+      <button onClick={() => setCount(count + 1)}>add</button>
+    </div>
+  )
+}
+```
+
+## 异步原子 - Async atom
+
+这个就到我们今天的主题了，来看看`async atom`是怎么结合`suspense`使用的
+
+```jsx
+import { atom, useAtom } from `jotai`
+
+const detailAtom = atom(async () => {
+  const result = await fakeFetchDetail()
+  return result;
+})
+
+const App = () => {
+  return (
+    <React.Suspense fallback={<div>loading...</div>}>
+      <Detail />
+    </React.Suspense>
+  )
+}
+
+const Detail = () => {
+  const [data] = useAom(detailAom)
+
+  return <div>{data.name}</div>
+}
+```
+
+其实这一部分代码就已经能够展现我为什么喜欢`Suspense`
+
+- 声明式的`loading`处理机制
+  - 想一想之前是要怎么处理`loaindg`，一堆重复的`if (loaindg) xxx`
+- 同步的组件代码，让我们的组件更加`Pure`
+  - 想一想之前要怎么请求，以及如何处理`data`还未返回的情况
+
+
+接下来我们就来看看实际业务中会遇到哪些问题吧
+
+### atom如何与路由参数同步
+
+基本上大家是都会用到路由的，以及大家都会在路由组件中去获取服务端数据，而且参数也是要在路由中获取的。比如一个详情页的路由，一般会设计成 `detail/$id`，然后通过`useParams`去获取到id，传给服务端接口，获取详情
+
+这一步，在`jotai`中就不是很方便了。一开始我想到的方案是这样的
+
+```js
+import { atom } from 'jotai'
+
+const idAtom = atom(() => {
+  const { id } = useParams()
+  return id
+})
+
+const detailAtom = atom(async (get) => {
+  const id = get(idAtom)
+  const result = await fakeFetchDetail(id)
+
+  return result
+})
+```
+
+但这样行不通，一个是不能在`hook`内使用`hook`。一个是`idAtom`在初始化后，就不会在更新了，除非你手动调用`set`方法。所以这样写是不会与路由同步的。对于这个问题，社区目前还没有最佳实践。`jotai`作者提供了一个[方案](https://github.com/pmndrs/jotai/discussions/1113#discussioncomment-2624398)
+
+```js
+const locationAtom = atom(null);
+locationAtom.onMount = (set) => {
+  const callback = (arg) => {
+    set(arg.location);
+  };
+  const unlisten = history.listen(callback);
+  callback(history);
+  return unlisten;
+};
+```
+
+就是自己去监听路由的变化，然后手动调用`set`方法，更新`atom`。我在实践中并没有用这种方法，而是用的`atomFamily`去做，下面就介绍一下`atomFamily`
+
+回过头来看，这种方法可能更好
+
+### 异步atom如何传递参数？
+
+`jotai`的`atom`在定义的时候是不可以传递参数的，但很多时候我们的请求都是需要动态参数的，比如一个支持分页的列表页。这时候我们就需要动态的去生成`atom`了。`jotai`官方也提供了一些工具函数给我们使用
+
+```jsx
+import { atom, useAtomValue } from 'jotai'
+import { atomFamily } from 'jotai/utils'
+
+const groupListAtom = atomFamily((page) => atom(async () => {
+  const result = await fakeFetchList(page)
+  return result
+}))
+
+const ListPage = () => {
+  const data = useAtomValue(atomFamily(1))
+
+  return (
+    <div>
+      <ul>
+        {data.list.map(item => <li>xxx</li>)}
+      </ul>
+    </div>
+  )
+}
+```
+
+如果要同时传递多个参数呢？`atomFamily`只支持传递一个参数，如果要传递多个参数，需要与对象的方式传递
+
+```jsx
+import { atom, useAtomValue } from 'jotai'
+import { atomFamily } from 'jotai/utils'
+
+const groupListAtom = atomFamily(({ page, limit }) => atom(async () => {
+  const result = await fakeFetchList(page, limit)
+  return result
+}))
+
+const ListPage = () => {
+  const data = useAtomValue(atomFamily({ page: 1, limit: 10 }))
+
+  return (
+    <div>
+      <ul>
+        {data.list.map(item => <li>xxx</li>)}
+      </ul>
+      <button>next page</button>
+    </div>
+  )
+}
+```
+
+上面的代码会导致无限的请求。这是因为`atomFamily`内部实现上有一个缓存机制，如果传递的参数已经创建过了（默认用`Object.is`方法判断），就会返回已缓存的`atom`。而这里传递的是一个对象，每一次`render`中传递的引用都不一样，所以会一直创建`atom`，导致无限请求。我们可以通过自定义`atomFamily`的第二个参数解决
+
+```jsx
+import { atom, useAtomValue } from 'jotai'
+import { atomFamily } from 'jotai/utils'
+import deepEqual from 'fast-deep-equal'
+
+const groupListAtom = atomFamily(({ page, limit }) => atom(async () => {
+  const result = await fakeFetchList(page, limit)
+  return result
+}), deepEqual)
+```
+
+### 如何删除`atomFamily`的缓存
+
+缓存机制带来的另一个问题就是如何删除缓存？因为有的时候我们并不希望用缓存数据，而想要用最新的数据 - 比如列表中某一项已经更新了
+
+你可以用 `groupListAom.remove({ page: 1, limit: 10 })` 方法来删除某一项缓存。参数与创建时的参数一致即可
+
+如果我想删除所有的缓存呢？
+
+```js
+groupListAtom.setShouldRemove(true)
+groupListAtom.setShouldRemove(null)
+```
+
+### 如何触发`async atom`的更新
+
+在讲如何触发更新前，我们先介绍一下「派生原子」的三种类型
+
+- 只读原子
+- 只写原子
+- 读写原子
+
+```js
+// 只读
+const readOnlyAtom = atom((get) => get(priceAtom) * 2)
+
+// 只写
+const writeOnlyAtom = atom(
+  null, // it's a convention to pass `null` for the first argument
+  (get, set, update) => {
+    // `update` is any single value we receive for updating this atom
+    set(priceAtom, get(priceAtom) - update.discount)
+  }
+)
+
+// 读写
+const readWriteAtom = atom(
+  (get) => get(priceAtom) * 2,
+  (get, set, newPrice) => {
+    set(priceAtom, newPrice / 2)
+    // you can set as many atoms as you want at the same time
+  }
+)
+```
+
+按照这个定义，我们上面的代码中的异步原子都是只读原子，是无法手动触发更新的。要支持更新，我们需要改造成读写原子
+
+```jsx
+// 改造前 - 只读
+const detailAtom = atom(async () => {
+  const result = await fakeFetchDetail()
+  return result;
+})
+
+// 改造后 - 读写
+const detailAtom = atom(async () => {
+  const result = await fakeFetchDetail()
+  return result;
+}, (_, set) => {
+  const result = await fakeFetchDetail()
+  set(detailAtom, result)
+})
+```
+
+如何使用？
+
+```jsx
+const Detail = () => {
+  const [data, refresh] = useAtom(detailAtom);
+
+  return (
+    <div>
+      {data.name}
+      <button onClick={() => refresh()}>refresh</div>
+    </div>
+  )
+}
+```
+
+这样写可以解决我们的问题，但是`get`和`set`代码有点重复了，我们可以利用「派生原子」的特性 - 如果依赖的原子更新了，派生原子也会更新 - 去触发重新请求。并实现一个通用的工具函数
+
+```js
+import { atom } from 'jotai'
+
+export function atomWithRefresh(fn) {
+  // 基础原子
+  const refreshCounter = atom(0)
+
+  return atom(
+    (get) => {
+      // 声明依赖
+      get(refreshCounter)
+      return fn(get)
+    },
+    // 更新基础原子
+    (_, set) => set(refreshCounter, (i) => i + 1)
+  )
+}
+```
+
+如何使用？
+
+```jsx
+const detailAtom = atomWithRefresh(async () => {
+  const result = await fakeFetchDetail()
+  return result;
+})
+
+const Detail = () => {
+  const [data, refresh] = useAtom(detailAtom);
+
+  return (
+    <div>
+      {data.name}
+      <button onClick={() => refresh()}>refresh</div>
+    </div>
+  )
+}
+```
+
+这样`detailAtom`就具备了刷新的能力
+
+
+
+遇到的几个比较大的问题就是这些了。`jotai`还是一个蛮有趣的状态管理库的，而且作者也是写了好几个状态管理的库，每个都有不一样的特性，感兴趣的同学可以去关注一波
+
+### one more thing - Race Conditions
+
+还有一个`suspense`的特性我需要讲一下，就是能够避免`race condition`。那什么是`race condition`呢？
+
+[codesandbox](https://codesandbox.io/s/xenodochial-monad-d5fgz?file=/src/App.js)
+
+我建了一个例子，大家可以体验一下，快速的点击两次`next page`按钮，看一下最终的页面显示什么。这是个很常见的`bug`，在我司的很多内部平台上都遇到过，无论的分页的场景还是搜索的场景。原因如图所示
+
+<img width="428" alt="Screen Shot 2022-05-04 at 18 22 07" src="https://user-images.githubusercontent.com/4456380/166664056-5947cf9d-af31-4c7b-8bf9-1dbc98334109.png"></img>
+
+而`suspense`可以避免这个问题，我们的组件不需要去处理异步请求的生命周期问题，不需要在请求完成后去调用`setState`。我们的组件代码是「同步」的，就不会出现这个问题
+
+### 最后
+`suspense`机制还是蛮有趣的，而`react`也是期望`suspense`可以成为未来大家获取数据的默认机制。后面会未大家带来`suspense`原理解析。以及`jotai`的原理解析

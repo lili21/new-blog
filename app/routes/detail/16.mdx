@@ -1,0 +1,41 @@
+---
+published: 2022-07-20
+meta:
+  title: 6行css实现fullpage
+---
+
+`Fullpage`效果在很多官网，活动页都被经常用到。之前我们一般都会用[fullpage.js](https://alvarotrigo.com/fullPage/)来实现这个效果。但他有两个缺点
+
+1. 付费
+2. 基于JS，包大小为56.6KB
+
+最近在无意间发现了一个新的css属性 `scroll-snap`，可以用几行css就实现fullpage效果。废话不多说，直接上demo
+
+
+<iframe src="https://codesandbox.io/embed/admiring-sea-v9nd2t?fontsize=14&hidenavigation=1&theme=dark"
+     style={{ width: '100%', height: '500px', border:0, borderRadius: '4px', overflow: 'hidden'}}
+     title="admiring-sea-v9nd2t"
+     allow="accelerometer; ambient-light-sensor; camera; encrypted-media; geolocation; gyroscope; hid; microphone; midi; payment; usb; vr; xr-spatial-tracking"
+     sandbox="allow-forms allow-modals allow-popups allow-presentation allow-same-origin allow-scripts"
+   ></iframe>
+
+```css
+.scroll-container {
+  height: 100vh;
+  overflow-y: scroll;
+  scroll-snap-type: y mandatory;
+}
+
+.section {
+  height: 100vh;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+}
+
+```
+
+只需要这几行代码，就可以实现了。
+
+利用这个css属性，我们还可以轻松实现轮播图效果
+
+

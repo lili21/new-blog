@@ -1,0 +1,98 @@
+---
+published: 2022-08-14
+meta:
+  title: Remix实战系列 - 样式篇II
+---
+
+
+上一篇文章, 有提到Remix中关于样式的几个问题
+
+1. 开发体验不佳，特别是组件的样式
+2. 样式文件过多
+3. 样式文件没有压缩
+4. 如何移除没有用到的样式 - purge？
+
+这一篇就跟大家分享一下我们解决这些问题的思路
+
+## 整体思路
+
+从上一篇文章中可以得出结论，我们只能对样式做预处理。也就是在Remix打包构建前，把样式处理好
+
+<img width="877" alt="Screen Shot 2022-08-14 at 15 43 25" src="https://user-images.githubusercontent.com/4456380/184527368-918c15e5-3d94-4ecf-b45d-a6bc588c6e9b.png"></img>
+
+样式源代码维护在与`app`同级的`styles`目录中，处理后生成样式文件至`app/styles`目录中。在「样式处理」这一步，我们可以引入自己喜欢的工具，去实现我们的目的。这里我们使用的是[parcel-css][1]
+
+我们还需要区分开发时和构建时的区别
+
+### 开发时
+
+<img width="877" alt="Screen Shot 2022-08-14 at 16 25 52" src="https://user-images.githubusercontent.com/4456380/184528803-16bdec2e-f840-4b76-8ea8-222bb315eb4d.png"></img>
+
+
+### 构建时
+<img width="877" alt="Screen Shot 2022-08-14 at 16 29 18" src="https://user-images.githubusercontent.com/4456380/184528924-c1c0861e-0837-489a-b385-49dc9a0812d3.png"></img>
+
+
+## 组件样式和样式文件过多
+
+这两个是有因果关系的。从可维护性上看，我们一般都会把组件样式放在一个单独的文件里维护。而每一个组件的样式文件，最终在打包后，也会是一个单独的样式文件请求。Remix并不会帮我们做过多的处理。所以我们需要自己做样式文件的合并
+
+
+### `@import`语法
+
+```css app.css
+@import './components/button.css';
+
+.app {
+  color: red;
+}
+```
+
+我们可以用`@import`语法，将组件样式引入到一个文件中。同时利用[parcel-css][1]的特性，将`@import`文件内容提前内联到样式文件中，这样就可以解决样式文件过多的问题，同时我们的组件样式依然是单独维护的
+
+## 样式文件压缩
+
+小case，[parcel-css][1]本身就是为此而生的
+
+## 移除没有用到的样式 - purge
+
+这一步其实非常重要，特别是对于引入了第三方组件库的项目。从我们的实际项目来看，组件库的样式文件大小就有`100KB`。而在`purge`之后，组件样式文件只有`20KB`，直接减少了80%。但这一步要做的工作也是最多的。
+
+首先简单介绍下purge的原理
+
+<img width="877" alt="Screen Shot 2022-08-14 at 16 49 56" src="https://user-images.githubusercontent.com/4456380/184529548-880fd7b9-cff4-4b0c-9436-7c421ac3f94f.png"></img>
+
+
+如上图所示，purge就是找到比较源码和样式文件，如果样式文件内的规则没有在源码中用到，那就直接删除，生成新的样式文件。
+如果我们没用到组件库，那非常简单，这里的源码只包含我们自己的代码。但引入的组件库，事情变得就复杂了一点。
+这里的源码还包括了我们引入的组件，以及组件引入的组件。我们就需要找到所有的这些依赖，一起去做purge。否则样式就会丢失。
+
+
+<img width="877" alt="Screen Shot 2022-08-14 at 16 56 22" src="https://user-images.githubusercontent.com/4456380/184529738-ef17e49b-3f9a-4b60-b52d-5ebf3f7fcd2e.png"></img>
+
+这一步我们利用的是[swc][2]实现的。解析代码，找到源代码中的组件依赖，然后递归找到组件本身的依赖，这样就可以找到所有的组件依赖。和我们的源代码一起，去做css的purge
+
+## 开发体验问题
+
+针对开发体验问题，我们并没有做过多的处理，[parcel-css][1]本身支持规则嵌套
+
+```css
+.app {
+  color: red;
+
+  & .test {
+    color: black;
+  }
+}
+```
+
+你也可以用类似的思路，引入你想要的语法。比如less, sass等。
+
+
+## 总结
+
+Remix中的如何书写样式，其实有很大的灵活性。不同的项目可能有不同的要求。大家只要按照本文提供的思路，去实现自己的目的。
+
+
+[1]: https://github.com/parcel-bundler/parcel-css
+[2]: https://swc.rs/

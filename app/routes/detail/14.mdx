@@ -1,0 +1,97 @@
+---
+published: 2022-06-19
+meta:
+  title: All in SSR
+---
+
+
+前几年的工作都是负责基建，业务上也是偏中后台，所以即使SSR这个主题已经出了好几年了，我也没怎么接触过。另一方面也是之前能打的只有Next.js，而Next.js的整个重心感觉还是在SSG上，对SSR虽然支持，但API的设计上可能我不是很喜欢，所以也没有深入使用。知道最近接触和学习的Remix，加上目前的业务上也是偏向C端，对这方面有需求，所以对SSR有了更多的了解。对remix的介绍可以参考我之前写的 #12 ，本文主要介绍我们为什么会考虑 All In SSR，SSR有什么优势，又有什么待解决的问题
+
+## Why SSR ? 这不仅是技术问题，更多的是业务问题
+
+我们的业务是面向海外用户的，基本上都有分享到FB,Twitter的需求，而且分享的内容是动态的
+
+1. 多语言导致分享文本是动态的 - 不同国家展示不同的语言
+2. 分享出去的内容也基本是动态的，和当前用户的信息有关
+
+简单介绍分享一个链接到FB后，FB是如何展示这条链接的。这里遵循的是 [The Open Graph protocol](https://ogp.me/)。当你分享一个链接到FB后，FB的爬虫会请求这个链接，并解析返回的html，提取OG相关内容展示。以分享 `https://github.com` 到FB为例
+
+![image](https://user-images.githubusercontent.com/4456380/174470240-41547b97-012b-48e5-bc25-7550563dd076.png)
+
+我仅仅是发表了这个链接，但FB会展示出链接对应的图片，标题和内容。这些信息从哪里来的呢？就是从 `https://github.com` 返回的html中解析出来的
+
+![image](https://user-images.githubusercontent.com/4456380/174470304-d898656f-2ac6-4d6d-86c3-6f28fa498e61.png)
+
+如果是CSR方案，我们都知道HTML是固定，爬虫是不会运行我们的JS的，所以依赖JS去改这个内容是不可行的。所以为了满足这个需求，我们只能上服务端渲染的方案 - 根据请求返回不同的og内容，展示不同的分享内容
+
+## Why SSR ？是性能问题，也是业务问题
+
+我们业务面向的用户，以东南亚用户为主。而东南亚地区网络质量偏差，终端设备偏中低端。在这样的环境下，保障用户体验更具挑战，常规的性能优化方案已经无法满足我们的需求。在无法控制用户设备和用户网络的情况下，我们需要寻找更优解。于是我们把目光投向了SSR
+
+## CSR vs SSR
+
+我们先简单介绍一下CSR和SSR的区别
+
+### CSR
+
+![image](https://user-images.githubusercontent.com/4456380/174470567-c79ef9ee-b364-4477-97d1-0c9f491b1126.png)
+
+上图基本可以展现当前CSR应用的网络请求情况。用户要看到页面内容，首先要先请求HTML，HTML返回后开始加载JS，JS加载执行完成后，请求服务端数据，根据服务端返回的数据，渲染页面内容。
+
+用户至少需要3个请求，而且请求是串行的。对于网络质量偏差的用户，这个过程可能是漫长的。从我们收集到的数据看，FMP75分位数在4s~6s之间
+
+### SSR 
+
+![image](https://user-images.githubusercontent.com/4456380/174470557-9ea7a0a0-e7a5-4aab-9a17-7425cbe5a43a.png)
+
+相比于CSR，SSR在我们自己的服务器发起请求数据，渲染HTML，再返回给浏览器。由用户发起的网络请求减少了（fetch data）。页面渲染的更快了（FP，LCP）
+
+但仅仅有SSR是不够的
+1. SSR会导致我们的HTML请求耗时增加，这又会导致JS等静态资源的加载时机被推迟
+2. SSR输出的HTML是纯静态的，无法交互。而Hydration过程，可能会导致TTI相比CSR更差
+  1. 用户更早的看到了页面内容，但是无法操作
+
+## HTML Streaming
+
+针对静态资源加载被推迟的问题，我们可以尝试用streaming的方式解决
+
+![image](https://user-images.githubusercontent.com/4456380/174470902-678dba71-9753-45c1-b633-056ee8401626.png)
+
+浏览器其实很早就支持渲染流式HTML的 - 服务端可以分片式的返回HTML，并不需要一次性返回所有的HTML。[早在2009年，facebook就使用这种方法优化性能](https://www.facebook.com/notes/10158791368532200/)
+
+```html
+<!DOCTYPE html>
+<html lang="no">
+<head>
+    <meta charset="utf-8">
+    <link rel="preload" as="script" href="bundle.js">
+```
+
+如上所示，在用户请求HTML的时候，可以先返回一小段包含当前页面资源preload的片段，这样在服务端处理剩余的HTML的时候，用户浏览器就已经开始加载静态资源了。串行的网络请求变成了并行的网络请求。
+
+React 18已经开始支持streaming了。而像[markojs](https://markojs.com/)这样的框架更是在2014年就已经支持了。
+
+## Hydration问题
+
+`Hydration`是一个相对大的话题，值得一遍单独的文章来探讨。简单讲，以React为例，现有的`Hydration`方案性能都不够好。因为现有的方案都是从头到尾重新再渲染一次，然后在渲染的过程中，加上一些状态和事件监听。而为了避免重新渲染的时候，重复发起服务端请求，SSR返回的页面都会把服务端获取到的数据注入到HTML中，这会导致HTML体积变得很大。
+
+以这两个页面为例
+
+[marko hn](https://marko-hackernews.ryansolid.workers.dev/stories/31792790)
+![image](https://user-images.githubusercontent.com/4456380/174471415-fe4b054b-336e-425a-a03e-536a2153a50c.png)
+
+[remix hn](https://remix-hackernews.ryansolid.workers.dev/stories/31792790)
+![image](https://user-images.githubusercontent.com/4456380/174471428-5c909265-8804-4314-9d7c-f8d4e0ac0212.png)
+
+HTML体积差了一倍。
+
+所以现在社区里也有了想 Progressive Hydration，Partial Hydration的概念。也就是不需要从头到尾都渲染一遍。像Astro，marko。而Remix走的是Progressive Enhancement路线，即我们大家都按照web标准来实现，页面跳转用`<a />`标签，表单提交用`<form post/>`。这样在JS还在加载中的时候，用户依然是可以操作的，只不过就没有了SPA的体验。JS只是用来增强体验的。
+
+
+还有像[Qwik](https://qwik.builder.io/)这样，走一条自己的路 - 0 hydration。而 React Server Component又是另一种解决方案。这个话题就不在此展开了
+
+## Why All In SSR
+
+上面分别从技术和业务角度分析了下我们为什么会尝试SSR。但为什么会All In SSR？是我个人认为的一个趋势。随着像serverless, edge function 这样基建的发展，包括nodejs, deno等语言的发展。目前前端去参与服务端开发的门槛已经是很低了。而目前的前端框架，也有往全栈的发展趋势。把更多的逻辑放到服务端去做，浏览器需要加载和执行的JS就相对会减少，那么页面性能就可以减轻对网络和设备的依赖
+
+
