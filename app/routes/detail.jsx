@@ -8,6 +8,14 @@ export const links = () => [
   },
 ];
 
+const d = 60 * 60 * 24;
+
+export const headers = () => {
+  return {
+    "Cache-Control": `max-age=${d}`,
+  };
+};
+
 export default function Detail() {
   return <Outlet />;
 }
