@@ -94,10 +94,10 @@ export default function Index() {
   );
 }
 
-function Article({ name, title }) {
+function Article({ created_at, name, title }) {
   return (
     <li>
-      {/* <span>{format(created_at)}</span> */}
+      <span>{format(created_at)}</span>
       <Link prefetch="intent" to={`/detail/${name}`}>
         {title}
       </Link>
