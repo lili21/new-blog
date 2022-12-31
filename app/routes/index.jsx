@@ -22,6 +22,7 @@ import * as post18 from "./detail/18.mdx";
 import * as post19 from "./detail/19.mdx";
 import * as post20 from "./detail/20.mdx";
 import * as post21 from "./detail/21.mdx";
+import * as post22 from "./detail/22.mdx";
 import { json } from "@remix-run/node";
 
 export const links = () => [
@@ -63,6 +64,7 @@ export const loader = () => {
       post19,
       post20,
       post21,
+      post22,
     ]
       .map((mod) => {
         return {
