@@ -1,6 +1,6 @@
 import { Outlet } from "@remix-run/react";
 import codeHideStyle from "@code-hike/mdx/dist/index.css";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 export const links = () => [
   {
@@ -18,7 +18,11 @@ export const headers = () => {
 };
 
 export default function Detail() {
+  const utterancLoaded = useRef(false);
   useEffect(() => {
+    if (utterancLoaded.current) {
+      return;
+    }
     // fixme - StrictMode下会执行两次
     const s = document.createElement("script");
     s.src = "https://utteranc.es/client.js";
@@ -27,6 +31,7 @@ export default function Detail() {
     s.setAttribute("crossorigin", "anonymous");
     s.setAttribute("issue-term", "pathname");
     document.body.appendChild(s);
+    utterancLoaded.current = true;
   }, []);
   return <Outlet />;
 }
