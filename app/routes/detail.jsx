@@ -1,4 +1,5 @@
 import { Outlet } from "@remix-run/react";
+import { json } from "@remix-run/node";
 import codeHideStyle from "@code-hike/mdx/dist/index.css";
 
 export const links = () => [
@@ -7,6 +8,13 @@ export const links = () => [
     href: codeHideStyle,
   },
 ];
+
+export const loader = ({ request }) => {
+  console.log(a.b);
+  return json({
+    name: "lili",
+  });
+};
 
 export default function Detail() {
   //const utterancLoaded = useRef(false);
