@@ -2,6 +2,8 @@
 meta:
   title: stale-while-revalidate - 缓存与实时性间的平衡艺术
 published: 2022-12-31
+headers:
+  Cache-Control: s-maxage=86400, stale-while-revalidate=604800
 ---
 
 在上一篇文章里我们提到了如何在Remix项目里给HTML添加缓存，以及简单的介绍了`etag`, `max-age`这样常见的缓存相关的配置。

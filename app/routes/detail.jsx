@@ -8,14 +8,6 @@ export const links = () => [
   },
 ];
 
-const d = 60 * 60 * 24;
-const w = 60 * 60 * 24 * 7;
-export const headers = () => {
-  return {
-    "Cache-Control": `s-maxage=${d},stale-while-revalidate=${w}`,
-  };
-};
-
 export default function Detail() {
   //const utterancLoaded = useRef(false);
   //useEffect(() => {
