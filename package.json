@@ -8,28 +8,28 @@
     "build": "remix build",
     "deploy": "fly deploy --remote-only",
     "dev": "remix dev",
-    "start": "remix-serve build",
-    "postinstall": "metronome patch @remix-run/serve"
+    "start": "remix-serve build"
   },
   "dependencies": {
-    "@code-hike/mdx": "^0.7.4",
-    "@metronome-sh/express": "^5.6.1",
-    "@metronome-sh/react": "^5.6.1",
-    "@metronome-sh/vercel": "^5.6.1",
-    "@octokit/core": "^3.6.0",
-    "@remix-run/node": "^1.7.2",
-    "@remix-run/react": "^1.7.2",
-    "@remix-run/serve": "^1.7.2",
-    "@remix-run/vercel": "^1.7.6",
-    "@vercel/node": "^2.5.22",
-    "isbot": "^3.6.1",
+    "@code-hike/mdx": "^0.8.0",
+    "@metronome-sh/express": "^5.8.1",
+    "@metronome-sh/react": "^5.8.1",
+    "@metronome-sh/vercel": "^5.8.1",
+    "@octokit/core": "^4.2.0",
+    "@remix-run/node": "^1.11.1",
+    "@remix-run/react": "^1.11.1",
+    "@remix-run/serve": "^1.11.1",
+    "@remix-run/vercel": "^1.11.1",
+    "@vercel/node": "^2.8.15",
+    "isbot": "^3.6.5",
+    "mdx-bundler": "^9.2.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },
   "devDependencies": {
-    "@remix-run/dev": "^1.7.2",
-    "@remix-run/eslint-config": "^1.7.2",
-    "eslint": "^8.11.0"
+    "@remix-run/dev": "^1.11.1",
+    "@remix-run/eslint-config": "^1.11.1",
+    "eslint": "^8.32.0"
   },
   "engines": {
     "node": ">=14"
