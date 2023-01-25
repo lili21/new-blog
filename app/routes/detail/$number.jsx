@@ -37,11 +37,11 @@ export const loader = ({ params }) => {
   return getBlogDetail(params.number);
 };
 
-const d = 60 * 60 * 24 * 7;
+const d = 60 * 60 * 24;
 
 export const headers = () => {
   return {
-    "Cache-Control": `max-age=${d}`,
+    "Cache-Control": `s-maxage=${d * 7}, stale-while-revalidate=${d * 30}`,
   };
 };
 
