@@ -6,8 +6,10 @@ import {
   Outlet,
   Scripts,
   ScrollRestoration,
+  useNavigation,
 } from "@remix-run/react";
 import { MetronomeLinks } from "@metronome-sh/react";
+import { BulletList } from "react-content-loader";
 
 import styleUrl from "~/styles/global.css";
 import normalizeStyle from "~/styles/normalize.css";
@@ -31,6 +33,7 @@ export const meta = () => ({
 });
 
 export default function App() {
+  const navigate = useNavigation();
   return (
     <html lang="en">
       <head>
@@ -47,7 +50,7 @@ export default function App() {
             <Link to="/about">About Me</Link>
           </header>
           <main className="main">
-            <Outlet />
+            {navigate.state === "loading" ? <BulletList /> : <Outlet />}
           </main>
         </div>
         <ScrollRestoration />
