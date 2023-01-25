@@ -54,6 +54,7 @@ export const getBlogDetail = async (number) => {
             {
               showCopyButton: true,
               theme,
+              autoImports: false,
             },
           ],
         ];

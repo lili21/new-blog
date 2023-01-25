@@ -8,8 +8,7 @@
     "build": "remix build",
     "deploy": "fly deploy --remote-only",
     "dev": "remix dev",
-    "start": "remix-serve build",
-    "postinstall": "metronome patch @remix-run/serve"
+    "start": "remix-serve build"
   },
   "dependencies": {
     "@code-hike/mdx": "^0.8.0",
