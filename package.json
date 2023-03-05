@@ -1,39 +1,25 @@
 {
-  "name": "remix-template-vercel",
+  "name": "next",
+  "version": "0.1.0",
   "private": true,
-  "description": "",
-  "license": "",
-  "sideEffects": false,
   "scripts": {
-    "build": "remix build",
-    "deploy": "fly deploy --remote-only",
-    "dev": "remix dev",
-    "start": "remix-serve build",
-    "postinstall": "metronome patch @remix-run/serve"
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
   },
   "dependencies": {
     "@code-hike/mdx": "^0.8.0",
-    "@metronome-sh/express": "^5.8.1",
-    "@metronome-sh/react": "^5.8.1",
-    "@metronome-sh/vercel": "^5.8.1",
     "@octokit/core": "^4.2.0",
-    "@remix-run/node": "^1.11.1",
-    "@remix-run/react": "^1.11.1",
-    "@remix-run/serve": "^1.11.1",
-    "@remix-run/vercel": "^1.11.1",
-    "@vercel/node": "^2.8.15",
-    "isbot": "^3.6.5",
-    "mdx-bundler": "^9.2.1",
-    "react": "^18.2.0",
-    "react-content-loader": "^6.2.0",
-    "react-dom": "^18.2.0"
-  },
-  "devDependencies": {
-    "@remix-run/dev": "^1.11.1",
-    "@remix-run/eslint-config": "^1.11.1",
-    "eslint": "^8.32.0"
-  },
-  "engines": {
-    "node": ">=14"
+    "@types/node": "18.14.6",
+    "@types/react": "18.0.28",
+    "@types/react-dom": "18.0.11",
+    "eslint": "8.35.0",
+    "eslint-config-next": "13.2.3",
+    "next": "13.2.3",
+    "next-mdx-remote": "^4.4.1",
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
+    "typescript": "4.9.5"
   }
 }

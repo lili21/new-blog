@@ -4,12 +4,7 @@ node_modules
 .env
 .vercel
 .output
-
-/build/
-/public/build
-/api/index.js
-
-api/
+.next/
 
 .DS_Store
 fly.toml

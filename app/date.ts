@@ -4,7 +4,7 @@ const dateTimeFormater = new Intl.DateTimeFormat("default", {
   day: "2-digit",
 });
 
-export function format(dateString) {
+export default function format(dateString: string) {
   const date = new Date(dateString);
   return dateTimeFormater.format(date);
 }
