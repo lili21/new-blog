@@ -3,6 +3,8 @@ import "@code-hike/mdx/dist/index.css";
 import format from "@/app/date";
 import MDXComponent from "./MDXComponent";
 
+export const revalidate = 3600;
+
 export default async function Detail({ params }: { params: { id: string } }) {
   const data = await getBlogDetail(Number(params.id));
   return (

@@ -3,6 +3,8 @@ import { getAllBlogs } from "./github.server";
 import format from "./date";
 import "./page.css";
 
+export const revalidate = 3600;
+
 export default async function Home() {
   const data = await getAllBlogs();
 
