@@ -16,7 +16,16 @@ export const getAllBlogs = async () => {
 
   return result.data
     .filter((d) => !d.pull_request)
-    .filter((d) => d.labels.every((l) => l.name !== "draft"))
+    .filter((d) =>
+      d.labels.every((l) => {
+        if (typeof l !== "string") {
+          return l.name !== "draft";
+        } else {
+          return true;
+        }
+      })
+    )
+
     .map(({ number, id, title, created_at }) => ({
       number,
       id,
