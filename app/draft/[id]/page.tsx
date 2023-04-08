@@ -2,7 +2,7 @@ import { getBlogDetail } from "@/app/github.server";
 import format from "@/app/date";
 import MDXComponent from "@/app/components/MDXComponent";
 
-export const revalidate = 3600;
+// export const revalidate = 3600;
 
 export default async function Detail({ params }: { params: { id: string } }) {
   const data = await getBlogDetail(Number(params.id));

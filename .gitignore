@@ -38,3 +38,5 @@ next-env.d.ts
 *.toml
 
 .env
+
+/draft
