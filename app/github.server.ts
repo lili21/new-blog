@@ -2,12 +2,14 @@ import { Octokit } from "@octokit/core";
 import { serialize } from "next-mdx-remote/serialize";
 import { remarkCodeHike } from "@code-hike/mdx";
 import theme from "shiki/themes/nord.json";
+import { cache } from "react";
 
 const client = new Octokit({
   auth: process.env.GITHUB_ACCESS_TOKEN,
 });
 
-export const getAllBlogs = async () => {
+export const getAllBlogs = cache(async () => {
+  console.log("---- get All Blogs---");
   const result = await client.request("GET /repos/{owner}/{repo}/issues", {
     owner: "lili21",
     repo: "new-blog",
@@ -32,9 +34,10 @@ export const getAllBlogs = async () => {
       title,
       created_at,
     }));
-};
+});
 
-export const getBlogDetail = async (id: number) => {
+export const getBlogDetail = cache(async (id: number) => {
+  console.log("---- get blog detail---", id);
   const {
     data: { title, body, created_at, html_url },
   } = await client.request("GET /repos/{owner}/{repo}/issues/{issue_number}", {
@@ -76,6 +79,6 @@ export const getBlogDetail = async (id: number) => {
       html_url,
     };
   }
-};
+});
 
 export default client;

@@ -3,7 +3,7 @@ import { getAllBlogs } from "./github.server";
 import format from "./date";
 import "./page.css";
 
-export const revalidate = 3600;
+export const revalidate = 60 * 60 * 24 * 7;
 
 export default async function Home() {
   const data = await getAllBlogs();
