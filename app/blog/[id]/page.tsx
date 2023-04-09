@@ -1,8 +1,29 @@
 import { getBlogDetail } from "@/app/github.server";
 import format from "@/app/date";
 import MDXComponent from "@/app/components/MDXComponent";
+import { Metadata } from "next";
 
 export const revalidate = 3600;
+
+export async function generateMetadata({
+  params,
+}: {
+  params: { id: string };
+}): Promise<Metadata> {
+  const { title } = await getBlogDetail(Number(params.id));
+  const url = new URL(
+    "https://vercel-og-nextjs-coral-five.vercel.app/api/param"
+  );
+  url.searchParams.set("title", title);
+  return {
+    title,
+    openGraph: {
+      title,
+      url: `https://blog.lili21.me/blog/${params.id}`,
+      images: [url.toString()],
+    },
+  };
+}
 
 export default async function Detail({ params }: { params: { id: string } }) {
   const data = await getBlogDetail(Number(params.id));
