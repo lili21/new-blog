@@ -22,6 +22,10 @@ export async function generateMetadata({
       url: `https://blog.lili21.me/blog/${params.id}`,
       images: [url.toString()],
     },
+    twitter: {
+      title,
+      images: [url.toString()],
+    },
   };
 }
 
