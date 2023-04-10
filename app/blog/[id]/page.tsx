@@ -1,8 +1,16 @@
-import { getBlogDetail } from "@/app/github.server";
+import { getBlogDetail, getAllBlogs } from "@/app/github.server";
 import format from "@/app/date";
 import MDXComponent from "@/app/components/MDXComponent";
 import { Metadata } from "next";
-export const revalidate = 60 * 60 * 24 * 30;
+// export const revalidate = 60 * 60 * 24 * 30;
+
+export async function generateStaticParams() {
+  const posts = await getAllBlogs();
+
+  return posts.map((post) => ({
+    id: post.id,
+  }));
+}
 
 export async function generateMetadata({
   params,
