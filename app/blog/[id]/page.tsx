@@ -8,7 +8,7 @@ export async function generateStaticParams() {
   const posts = await getAllBlogs();
 
   return posts.map((post) => ({
-    id: post.id,
+    id: `${post.number}`,
   }));
 }
 
