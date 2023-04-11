@@ -1,4 +1,8 @@
-# Personal Blog
-> Power by remix and codehide
+# 个人博客
 
-[blog.lili21.me](https://blog.lili21.me)
+Tech Stack
+
+- Next with appDir 
+- Contentlayer
+- codehide
+- vercel
