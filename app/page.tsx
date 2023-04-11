@@ -1,19 +1,19 @@
 import Link from "next/link";
-import { getAllBlogs } from "./github.server";
-import format from "./date";
+import { compareDesc, format } from "date-fns";
 import "./page.css";
 
-// export const revalidate = 60 * 60 * 24 * 7;
+import { allPosts } from "contentlayer/generated";
 
 export default async function Home() {
-  const data = await getAllBlogs();
-
+  const posts = allPosts.sort((a, b) => {
+    return compareDesc(new Date(a.date), new Date(b.date));
+  });
   return (
     <div style={{ fontFamily: "system-ui, sans-serif", lineHeight: "1.4" }}>
       <h2>文章</h2>
       <ol>
-        {data.map((d) => (
-          <Article key={d.id} {...d} />
+        {posts.map((d) => (
+          <Article key={d._id} title={d.title} date={d.date} url={d.url} />
         ))}
       </ol>
     </div>
@@ -21,18 +21,20 @@ export default async function Home() {
 }
 
 function Article({
-  number,
+  url,
   title,
-  created_at,
+  date,
 }: {
-  number: number;
+  url: string;
   title: string;
-  created_at: string;
+  date: string;
 }) {
   return (
     <li>
-      <span>{format(created_at)}</span>
-      <Link href={`/blog/${number}`}>{title}</Link>
+      <span style={{ width: "100px" }}>
+        {format(new Date(date), "yyyy-MM-dd")}
+      </span>
+      <Link href={url}>{title}</Link>
     </li>
   );
 }

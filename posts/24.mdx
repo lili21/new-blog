@@ -1,0 +1,174 @@
+---
+title: React开发者注意：这些常见错误你一定要避免！
+date: 2023-04-08
+---
+
+最近code review做的比较多，发现团队内同学（包括我自己）会犯一些常见的错误。这些错误可能会导致代码低效、难以维护，甚至会导致隐藏的BUG。本文将介绍React开发中的几个常见错误，以及如何避免它们。话不多说，让我们开始吧！
+
+## 错误一：通过useEffect + useState实现派生状态
+
+```jsx
+function Test(props) {
+  const [isOdd, setIsOdd] = useState(false)
+
+  useEffect(() => {
+    setIsOdd(props.number % 2 === 1)
+  }, [props.number])
+
+  return <div>{isOdd ? 'Yes' : 'No' }</div>
+}
+```
+
+这里的问题在于_`useEffect`_是在组件渲染后再执行的，而_`setCount`_又会导致组件重新渲染。所以这里其实多了一次没有必要的渲染。
+
+解法也非常简单，如下
+
+<CH.Section>
+
+```jsx
+function Home(props) {
+  const isOdd = props.number % 2 === 1
+
+  return <div>{isOdd ? 'Yes' : 'No' }</div>
+}
+```
+
+[`isOdd`](focus://2) 状态是完全和`props.number`挂钩的，我们只需要基于`props`根据我们的逻辑去计算一个新的值就可以了。如果这个计算比较耗时，那我们还可以通过`useMemo`去实现
+
+</CH.Section>
+
+```jsx
+function Home(props) {
+  const isOdd = useMemo(() => {
+    return someExpensiveCalculate(props.number)
+  }, [props.number])
+
+  return <div>{isOdd ? 'Yes' : 'No' }</div>
+}
+```
+
+## 错误二：在组件内部定义组件
+
+<CH.Section>
+
+```jsx
+function Test() {
+  const [value, setValue] = useState('')
+  const Count = () => {
+    return <h1>count 1</h1>
+  }
+
+  return (
+    <div>
+      <input value={value} onChange={e => setValue(e.target.value)} />
+      <Count />
+    </div>
+  )
+}
+```
+
+[`<Count />`](focus://3:5)这么写咋一看好像没啥问题，CR时也就是会说`Count`最好定义在组件外，免得每次`Test`组件渲染时都重新定义一个。可是重新定义一个函数有啥问题呢？我们给`Count`加点料
+
+</CH.Section>
+
+<CodeSandbox id="react-common-mistake-forked-t7he70" />
+
+可以在上面体验一下，多点击几次「add」，然后再在输入框里随意输入，就能看到`count`被重置为0了。
+
+这是因为每次输入框输入是，就会调用`setValue`，`Test`组件就会重新渲染。而每次渲染，`Count`组件都是一个新定义的组件，所以之前的`Count`会被卸载，而新的`Count`会被装载渲染，既然是新的`Count`，那内部的状态也肯定是新的了。
+
+
+所以记住，**不要再组件内部定义组件**
+
+## 错误三：直接执行组件函数
+
+<CH.Section>
+
+```jsx
+function Input() {
+  const [value, setValue] = useState('')
+  return <input value={value} onChange={e => setValue(e.target.value)} />
+}
+
+function Test() {
+  return (
+    <div>
+      {Input()}
+    </div>
+  )
+}
+```
+
+
+[`Input()`](focus://9)这么调用函数运行起来好像没啥问题啊，那`Input()`和`<Input />`有啥区别呢？先来加一个按钮来控制这个输入框的显示和隐藏
+
+```jsx
+function Input() {
+  const [value, setValue] = useState('')
+  return <input value={value} onChange={e => setValue(e.target.value)} />
+}
+
+function Test() {
+  const [visible, setVisible] = useState(true)
+  const toggleVisible = () => {
+    setVisible(v => !v)
+  }
+  return (
+    <div>
+      <button onClick={toggleVisible}>{visible ? 'hide input' : 'show input'}</button>
+      {visible && Input()}
+    </div>
+  )
+}
+```
+
+</CH.Section>
+
+可以试一下这个
+
+<CodeSandbox id="react-common-mistake-13h7s5" />
+
+点击「hide input」就会触发一个报错
+
+```bash
+Error
+Rendered fewer hooks than expected. This may be caused by an accidental early return statement.
+```
+
+当我们直接执行组件函数时，上面的代码和以下代码效果是一样的
+
+<CH.Section>
+
+```jsx input.jsx
+function Test() {
+  const [visible, setVisible] = useState(true)
+  const toggleVisible = () => {
+    setVisible(v => !v)
+  }
+  return (
+    <div>
+      <button onClick={toggleVisible}>{visible ? 'hide input' : 'show input'}</button>
+      {visible && (() => {
+        const [value, setValue] = useState('')
+        return <input value={value} onChange={e => setValue(e.target.value)} />
+      }()}
+    </div>
+  )
+}
+```
+
+[`Input()`](focus://9:12)在这里并不是一个组件，只是一个函数的封装。所以
+
+```jsx
+const [value, setValue] = useState('')
+```
+
+就变成了`Test`组件的第二个Hook。而`visible`状态变化时，第二个Hook就可能执行，也可以不执行。这就违反了React Hook的要求，就导致了报错~
+
+这就是`Input()`和`<Input />`的区别，`<Input />` 的语法最终会调用`React.createElement`，也就让react知道这是一个组件，可以有自己的state和hook。
+
+</CH.Section>
+
+## 结语
+
+当你开始使用React时，可能会遇到一些错误和挑战。但是，只要你能够认真学习和理解React的工作原理，遵循React最佳实践，避免常见的错误，你就能够编写出高质量、高效的React代码。希望这篇文章能够帮助你避免React开发中常见的错误，让你的React应用更加稳定和可靠。不断学习和实践，相信你会成为一名出色的React开发者！

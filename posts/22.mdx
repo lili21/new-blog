@@ -1,0 +1,98 @@
+---
+title: stale-while-revalidate - 缓存与实时性间的平衡艺术
+date: 2022-12-31
+---
+
+在上一篇文章里我们提到了如何在Remix项目里给HTML添加缓存，以及简单的介绍了`etag`, `max-age`这样常见的缓存相关的配置。
+但这些缓存策略对于数据偏动态的Remix项目来讲，都无法使用
+
+首先是`etag`，我们需要在服务端根据生成的html去计算和比较，而生成html需要调用的服务端接口耗时无法避免，`etag`带来的优化就不大了
+
+其次是`max-age`，如果我们的页面对实时性有一定的要求，我们要设置多大的`max-age`呢？
+即使对实时性要求不高，`max-age`是私有缓存，存储在用户的设备上，我们无法操控，如果缓存设置时间过大，页面上有BUG怎么办？我们将无法及时修复。
+而设置的过小，对于性能的提升就不大了
+
+有没有什么缓存策略可以在性能与实时性之间做到很好的平衡呢？这就是我们今天要介绍的`stale-while-revalidate`
+
+## 缘起
+
+第一次知道`stale-while-revalidate`还是因为[SWR](https://swr.vercel.app/)这个网络请求库，他的特点就是先返回缓存里的数据，并同时发送请求获取新的数据，更新数据。
+而这也正是`stale-while-revalidate`的特性
+
+- 优先使用缓存内的数据 - 性能有保障
+- 同时发送请求获取新的数据更新缓存 - 实时性有保障
+
+## 配置详解
+
+首先，`stale-while-revalidate`是需要和`max-age`一起使用的。因为浏览器需要判断资源缓存是否已失效，而这就依赖`max-age`了。
+
+我们来看下面这个例子，假设我们访问一个资源，返回的响应头包含如下缓存配置
+
+
+```
+Cache-Control: max-age=1, stale-while-revalidate=59
+```
+
+当我们再次访问该资源时，该缓存配置会起什么作用呢？
+
+- 如果在1s内再次访问，此时缓存还有效，浏览器会直接返回缓存，这是max-age=1的作用
+- 如果是在超出1s，但1 + 59也就是60s内再次访问，此时缓存已经失效，但浏览器依然会直接返回缓存，同时在后台请求资源更新缓存，这是`stale-while-revalidate=59`的作用
+- 如果超出60s再次访问，浏览器将直接请求资源
+
+这就是`stale-while-revalidate`的作用了，在实际业务中，我们会配置一个较小的`max-age`，配合一个较大的`stale-while-revalidate`。损失一点点实时性，换来性能的提升，比如
+
+```
+Cache-Control: max-age=1, stale-while-revalidate=604800
+```
+
+当用户第一次访问时，获取的是最新的数据，看到的是最新的页面内容。
+当用户在7天内第二次访问时，用户看到的是缓存的页面内容，如果此时数据有更新，用户需要等到下一次访问的时候才能看到，这就是我们损失的实时性。
+得到的是7天内用户访问都是直接读取缓存，不再需要请求到我们的服务器，等我们的服务器请求接口，生成HTML再返回
+
+## 浏览器兼容性
+
+从[caniuse](https://caniuse.com/?search=stale-while-revalidate)的数据上看，Chrome从75版本开始支持，Safari目前还不支持。
+但从我的实际测试来看，Chrome的支持是有问题的，我们可以用如下代码去测试
+
+```js index.js
+const http = require('http')
+
+const html = `
+  <!DOCTYPE html>
+  <html>
+    <body>
+      <h1>Hello, World!!!</h1>
+    </body>
+  </html>
+`
+
+const server = http.createServer((req, res) => {
+  // 模拟服务端耗时1s生成html
+  setTimeout(() => {
+    res.writeHead(200, {
+      "Content-Type": "text/html",
+      "Cache-Control": "private, max-age=10, stale-while-revalidate=60"
+    })
+    res.write(html)
+    res.end
+  }, 1000)
+})
+
+server.listen(3000, () => {
+  console.log("server listen on 3000")
+})
+```
+
+以上是一个简单的nodejs服务器，启动后即可用浏览器访问[localhost:3000](http://localhost:3000)来测试了
+
+也已经有开发者对该问题提交了[issue](https://bugs.chromium.org/p/chromium/issues/detail?id=1183665&q=stale-while-revalidate&can=2)
+主要原因是Chrome只支持子请求的`stale-while-revalidate`缓存策略，对于页面请求(navigation request)，是不支持的，会直接忽略`stale-while-revalidate`配置
+
+我也在Firefox浏览器上测试过，Firefox是完全支持的。
+
+
+## 实战
+
+Chrome支持的不完善，以及Safari完全不支持的情况，导致想用该缓存策略去提升性能的我有点凌乱。我会再测试一下移动端的支持情况，再考虑运用到实际的项目中。
+
+另外，部分CDN厂商也是支持该缓存策略的，配合`s-maxage`使用，效果更佳。如果移动端浏览器支持也有问题，我只能把目光投向CDN了

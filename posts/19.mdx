@@ -1,0 +1,630 @@
+---
+date: 2022-09-20
+title: Remix系列 - Remix如何让LCP减少70%
+---
+
+## 背景
+
+MLBB战报是一个为MLBB的玩家提供每周游戏数据总结的H5页面。战报只有一个页面，每个模块为一屏，用户通过上划来查看不同模块的数据信息，比如段位、英雄等。
+
+<div data-grid-img>
+
+ ![image](http://p6-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/acc7123851994055b7526828a45257be~tplv-k3u1fbpfcp-watermark.image?)
+
+![image](http://p6-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/bf8419bf705e4db2a5d1f111f375f4db~tplv-k3u1fbpfcp-watermark.image?)
+
+![image](http://p1-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/6c6588fd20084ceea22438aa73e44947~tplv-k3u1fbpfcp-watermark.image?)
+ 
+</div>
+
+
+
+目前MLBB的玩家主要分布在东南亚和拉美地区，身处这些地区的用户本身的网络质量是比较差的。
+
+用户网络差的情况下，由用户设备发起的网络请求越多，体验越差。相比于CSR，SSR在我们自己的服务器发起请求数据，渲染HTML，再返回给浏览器。由用户发起的网络请求减少了（fetch data），页面就渲染的更快了（FP，LCP）。
+
+<div data-grid-img>
+
+ ![image](http://p6-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/0d610a2034324778ba132615d27e1578~tplv-k3u1fbpfcp-watermark.image?)
+
+![image](http://p9-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/88b4845219ea4a5e92e7f13fb0c6e755~tplv-k3u1fbpfcp-watermark.image?)
+ 
+</div>
+
+
+
+所以我们决定通过把战报从CSR迁移到SSR，来提升页面加载速度。确定好方案之后，下一步就是选择SSR框架。
+
+
+
+## Remix简介
+
+Remix是去年11月份开源的一个全栈，基于React提供服务端渲染能力的web框架。由react-router作者Ryan Florence和MICHAEL JACKSON一起创建。一经开源就广受好评。把玩一番后就感觉相见恨晚 - 原来SSR可以这么简单。
+
+
+
+## 前期准备工作
+
+给一个C端产品做技术选型，首先要考虑的就是兼容性。Remix只能运行在支持ES Modules的浏览器上
+
+<div data-type="transform-warn" data-index="18"> 
+
+ ![image](http://p6-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/918be0e08e00406190372f53131d0b75~tplv-k3u1fbpfcp-watermark.image?)
+ 
+</div>
+
+caniuse 上的数据看，兼容性已经非常好。但还是需要看下用户的实际情况
+
+为此，我们在项目中加了Slardar埋点，收集了一个双月的数据。埋点代码如下
+
+```html
+<script type="module">
+  window.Slardar('sendEvent', {
+     name: 'esmodule',
+     categories: {
+        support: '1'
+      }
+  });
+</script>
+<script nomodule>
+   window.Slardar('sendEvent', {
+     name: 'esmodule',
+     categories: {
+       support: '0'
+     }
+   });
+ </script>
+
+```
+
+线上数据如下
+
+<div data-type="transform-warn" data-index="23"> 
+
+ ![image](http://p6-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/acdadc5b8cee4f009e9d1eac5fc8f8aa~tplv-k3u1fbpfcp-watermark.image?)
+ 
+</div>
+
+支持率超过99.5%，可以大胆使用了。接下来看一下Remix是如何让首屏耗时减少70%的
+
+## 第一步：从CSR到SSR  7s - 4s
+
+整个战报Remix项目从CSR迁移到SSR，差不过耗时5人天完成。
+
+
+
+这里我们以LCP作为指标，观察一下迁移之后的效果，可以看到性能有提升，近7s -> 4s，减少了40%：
+
+<div data-type="transform-warn" data-index="29"> 
+
+ ![image](http://p1-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/7cf21c3b1dcd483ea20beba627e21244~tplv-k3u1fbpfcp-watermark.image?)
+ 
+</div>
+
+虽然后面又经过进一系列的优化，最终把LCP控制在了2s左右，但是在这一板块我们先介绍一下框架切换（CSR -> SSR）带给我们的性能提升。
+
+
+
+<div data-grid-img>
+
+ ![image](http://p6-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/b14d4057e5234b40b6ae3941a3c2232a~tplv-k3u1fbpfcp-watermark.image?)
+
+![image](http://p9-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/e3915ee7a23a43f08239d0a23157b2dd~tplv-k3u1fbpfcp-watermark.image?)
+ 
+</div>
+
+通过分析SSR的工作流程我们可以看到，导致LCP提前的主要因素是SSR会直接返回完整的HTML给浏览器， 这样浏览器拿到HTML之后渲染就可以达到LCP。
+
+
+
+相比于CSR，减少了客户端请求JS，执行JS，以及再去数据请求的时间。虽然在SSR中，这部分的工作并没有消失，只是转移到了服务端。不过：
+
+1.  在服务端不需要请求JS ，减少了一次请求，也避免了请求完JS才能拉取数据的瀑布流
+
+1.  在服务端，因为在同机房，数据请求更快
+
+
+
+像上面我们提到的，东南亚用户的网络条件不好，因此希望尽可能减少页面首屏渲染，需要从用户端发出的请求次数，而SSR正好帮我们做到了这一点。
+
+<div data-grid-img>
+
+ ![image](http://p1-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/0a9c864397484fe8a04828c0b7ffaf2e~tplv-k3u1fbpfcp-watermark.image?)
+
+![image](http://p6-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/afb403a2965f47dca3d1e44ffb813c16~tplv-k3u1fbpfcp-watermark.image?)
+ 
+</div>
+
+近7s -> 4s
+
+
+
+### 【拓展 | 选读】Remix如何解决数据请求的Waterfall
+
+> 虽然这个特性在战报迁移中体现不明显，但Remix的路由级别加载，以及它是如何请求数据Waterfall的问题还是值得介绍一下的。
+
+<div data-type="transform-error" data-index="45" data-block-type="高亮块" data-content=""></div>
+
+
+
+这里我们先引入一个例子来帮助我们理解什么是数据请求Waterfall。下左图是访问一个Twitter用户点过赞的帖子页面()，右图是抽象出来的组件模型。
+
+<div data-grid-img>
+
+ ![image](http://p1-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/b17f80105fc54147897621b6acccfbcf~tplv-k3u1fbpfcp-watermark.image?)
+
+![image](http://p3-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/f53daf7fc5b74447b76fbc6b78b52d59~tplv-k3u1fbpfcp-watermark.image?)
+ 
+</div>
+
+
+
+如果我们按照正常的逻辑来写，会把点赞过的Post抽成一个单独的组件，塞入页面父组件中，并在Post组件内部自己请求需要的数据。不过因为父组件中也需要请求User相关的数据，所以Pos组件内部的请求会被阻塞。类似下图示意：
+
+<div data-type="transform-warn" data-index="51"> 
+
+ ![image](http://p1-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/b04bee6d1b294992bdd2a952b2da4f93~tplv-k3u1fbpfcp-watermark.image?)
+ 
+</div>
+
+*父组件加载数据时页面一般展示loading，子组件的代码得不到执行，数据也就无法加载*
+
+
+
+但是在这里，如果我们后退一步分析一下，我们一定要依赖JS代码告诉我们需要请求什么数据么？通过别的信息是不是也能预测当前页面所需要的数据呢？
+
+
+
+仔细观察一下，一个路由下所需要请求的数据，是可以通过**页面路径**分析出来的。
+
+
+
+还是这个例子，当我们访问https://mobile.twitter.com/dan_abramov/likes 这个链接时，其实就能够知道我们需要知道“dan\_abramov”这个用户“likes”的帖子，那么对应需要拉取的数据就是：
+
+<div data-type="transform-warn" data-index="59"> 
+
+ ![image](http://p3-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/0478abf84f644e3484ce690f1f942505~tplv-k3u1fbpfcp-watermark.image?)
+ 
+</div>
+
+1.  dan的个人用户信息
+
+1.  他赞过的帖子
+
+
+
+Remix的开发者就顺着这个思路，推出了**路由级别加载**。在Remix中，每一个路由会对应一个loader， loader可以被用来拉取一个路由下需要的所有数据，而在路由组件内使用useLoaderData就可以获取loader中的返回值。
+
+
+
+```jsx
+...
+// loader 写法示意
+
+export const loader: LoaderFunction = async () => {
+  // data-fetching
+  const data = await fetchData();
+  return json(data);
+};
+ 
+export default function() {
+  const data = useLoaderData();
+  return (
+      <div>{data.text}</div>
+  );
+}
+```
+
+
+
+而且Remix支持同时拉取嵌套路由下对应的所有loader。在这里，当我们访问/dan\_abramov/likes时，它会同时去启动dan\_abramov和likes两个路由下的loaders，这就完美地避免了我们刚刚所说的请求阻塞即瀑布流的情况。
+
+
+
+相比于简单地把子组件的请求提升到父组件中的解决方法，Remix的方法更具有拓展性。因为即使项目规模扩大，我们的嵌套路由层级加深，我们也只需要关注好每一个路由下所需要的数据，但是如果我们只是一味地把请求提升到更高层级，这会加深耦合，导致父组件中的数据请求量增大，从而带来数据维护的问题。
+
+
+
+Remix的路由级别加载，比较完美地解决了数据请求瀑布流的问题，也顺带提供了一种数据状态管理的方式，除了前端样式需要的全局状态，页面展示需要的后端数据都存储在loader里面即可。同时Remix也提供了action和fetcher等方法来更新数据，感兴趣的可以去remix官网查看。
+
+
+
+因为战报的页面比较特殊，没有页面嵌套父子组件导致的数据瀑布流的情况，但是这种case在业务中还是很常见的，如果你们的项目中有这种情况，使用remix优化后的效果会更加明显。
+
+
+
+## 第二步：关键图片预加载 4s - 3s
+
+4s的LCP，虽然已经优化了接近40%，但显然还不够好。
+
+
+
+我们可以用Maiev平台做一下性能分析
+
+<div data-type="transform-warn" data-index="79"> 
+
+ ![image](http://p1-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/5d1b8201ed8349a9bc3854055ca373c1~tplv-k3u1fbpfcp-watermark.image?)
+ 
+</div>
+
+3G网络下FCP 1.5s，但LCP5s左右。从上图的Render timeline部分来看，图片是影响LCP的重要因素。由于Mavie平台关于网络加载相关的数据较少，我们可以利用Chrome的Performance insights做更详细的性能分析
+
+
+
+<div data-type="transform-warn" data-index="82"> 
+
+ ![image](http://p9-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/e5dda8c9608b4d219b4aa6de76ba4e69~tplv-k3u1fbpfcp-watermark.image?)
+ 
+</div>
+
+展开详细看一下网络加载的情况
+
+<div data-type="transform-warn" data-index="84"> 
+
+ ![image](http://p6-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/82c27e34cd124d2abc8fbaab16b4839c~tplv-k3u1fbpfcp-watermark.image?)
+ 
+</div>
+
+有一个明显的网络瀑布流 ，图片加载被阻塞了。那是否可以预加载图片呢？
+
+可以用preload预加载图片，如下所示
+
+```html
+<link rel="preload" href="button-bg.png" as="image" />
+```
+
+对于静态的图片来讲，可以直接通过路由模块的links方法实现。只要\<link>标签支持的，我们都可以在写links方法中，包括样式，preload，prefetch等
+
+```js
+export const links = () => [
+  {
+    rel: 'preload',
+    href: 'button-bg.png',
+    as: 'image'
+  },
+]
+```
+
+那动态图片怎么办呢？像我们首页最大的一张图片，就是后端接口返回的，不同的用户，不同的战绩，图片都会不同。links是否支持获取loader返回的数据呢？
+
+```jsx
+export const links = ({ data }) => [
+  {
+    rel: 'preload',
+    href: 'button-bg.png',
+    as: 'image'
+  },
+  {
+    rel: 'preload',
+    href: data.hero.image_url,
+    as: 'image',
+  }
+]
+```
+
+很遗憾，links并不支持这种写法。但我们可以用路由模块的handle来实现。每一个路由组件都可以暴露出一个handle对象，值可以是任意类型
+
+```js
+export const handle = {
+  its: "all yours",
+}
+```
+
+同时，我们可以通过Remix提供的useMatches方法，获取到当前页面所有路由的信息。
+
+```js
+[
+  { id, pathname, data, params, handle }, // root route 
+  { id, pathname, data, params, handle }, // layout route 
+  { id, pathname, data, params, handle }, // child route 
+  // etc.
+ ];
+```
+
+data是路由loader返回的数据，handle是路由定义的handle。两者结合在一起，我们就可以实现动态图片预加载了
+
+1.  在路由部分定义handle
+
+```jsx
+export const handle = {
+  dynamicLinks: ({ data }) => [
+    {
+      rel: 'preload',
+      href: data.hero.image_url,
+      as: 'image',
+    }
+  ]
+}
+```
+
+1.  在root.tsx中渲染link
+
+```jsx
+export default function App() {
+  const matches = useMatches();
+  let dynamicLinks = [];
+  
+  for (let match of matches) {
+    if (match.handle.dynamicLinks) {
+      const links = match.handle.dynamicLinks({ data: match.data });
+      dynamicLinks = [...dynamicLinks, ...links]
+    }
+  }
+  
+  // render the links
+}
+```
+
+大体实现思路如上。社区内也已有[相关实现](https://github.com/sergiodxa/remix-utils#dynamiclinks)可直接使用。
+
+handle+useMatches提供了很强大的能力，在Remix应用里可以实现一些自定义的模式/约定。
+
+优化后效果
+
+<div data-type="transform-warn" data-index="104"> 
+
+ ![image](http://p9-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/c3447c84ddbb485881df6f9b1da4c282~tplv-k3u1fbpfcp-watermark.image?)
+ 
+</div>
+
+可以看到，图片在HTML返回后就立即开始加载了，不再被css资源阻塞。
+
+再看一下Mavie平台的数据
+
+<div data-type="transform-warn" data-index="107"> 
+
+ ![image](http://p9-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/00bcbc2d676747f098808ea4f25d67a1~tplv-k3u1fbpfcp-watermark.image?)
+ 
+</div>
+
+LCP在1.6s左右。
+
+
+
+线上数据
+
+<div data-type="transform-warn" data-index="111"> 
+
+ ![image](http://p6-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/e032a66067244a23803f0223470c23c1~tplv-k3u1fbpfcp-watermark.image?)
+ 
+</div>
+
+**4s左右 -> 3s**
+
+
+
+## 第三步：Streaming?Partial SSR? 3s - 2s
+
+再来看一眼我们的项目
+
+> 战报只有一个页面，每个模块为一屏，用户通过上划来查看不同模块的数据信息，比如段位、英雄等
+
+<div data-grid-img>
+
+ ![image](http://p1-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/52a3ab15d8b9405a8c50cf3158f52ce8~tplv-k3u1fbpfcp-watermark.image?)
+
+![image](http://p6-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/cedcdd6a275144179bc771cda1f47155~tplv-k3u1fbpfcp-watermark.image?)
+
+![image](http://p9-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/4ad30bcf60f140c68ab05c1b55344afd~tplv-k3u1fbpfcp-watermark.image?)
+ 
+</div>
+
+我们目前的方案是在服务端把所有页面渲染好，在一起返回给浏览器。但如果从性能考虑的话，我们是不是可以在服务端渲染好第一屏，就直接返回呢？剩下的内容可以通过Streaming的方式返回。
+
+React 18已经支持Streaming，但Remix的融合方案还在开发中，目前还没有发布正式版本，我们暂时是用不上了。但是我们可以用类似的思路去提升性能 - **只在服务端渲染首屏，其他内容在客户端渲染**
+
+而且战报页面是重交互的，包括Fullpage特性和可视化的内容。这些是无法，也没必要在服务端去渲染和处理的。
+
+
+
+大体实现思路如下。在SSR渲染时，直接返回null，在客户端渲染时再渲染组件
+
+```jsx
+function ClientOnly({ children }) {
+  let [isClient, setIsClient] = useState(false);
+  useEffect(() => {
+    setIsClient(true);
+  }, [])
+  return !isClient ? null : <>{children()}</>;
+}
+```
+
+这部分社区内已有[相关实现](https://github.com/sergiodxa/remix-utils#clientonly)，我们可以直接使用
+
+
+
+<div data-grid-img>
+
+  
+</div>
+
+
+
+优化带来的最直观的变化就是HTML体积
+
+优化前
+
+<div data-type="transform-warn" data-index="130"> 
+
+ ![image](http://p6-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/46bd8f56637e4c25b7b5b42f1a5c44a2~tplv-k3u1fbpfcp-watermark.image?)
+ 
+</div>
+
+优化后
+
+<div data-type="transform-warn" data-index="132"> 
+
+ ![image](http://p9-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/cd2a9f3844e9476f9363d774ede98ee4~tplv-k3u1fbpfcp-watermark.image?)
+ 
+</div>
+
+传输体积减少了20%，实际体积减少了44%。
+
+*   服务端不需要渲染相关组件，服务端耗时降低。TTFB减少
+
+*   传输体积减小，响应耗时减少
+
+*   HTML体积减小，浏览器首屏渲染，解析DOM的耗时减少
+
+
+
+线上数据
+
+<div data-type="transform-warn" data-index="139"> 
+
+ ![image](http://p6-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/0135d834f17b462eb87aaac2c2982704~tplv-k3u1fbpfcp-watermark.image?)
+ 
+</div>
+
+**3s左右 -> 2s左右**
+
+
+
+## 还做了哪些优化
+
+> 我们还做了一些通用的优化
+
+### 样式合并，压缩和裁剪 
+
+最初，直接用remix支持的路由组件内引入样式的方法。
+
+样式按照常规写法，给每个组件（路由组件或原子组件）编写独立的样式文件。路由下将用到的样式文件全部引入。
+
+<div data-type="transform-warn" data-index="147"> 
+
+ ![image](http://p9-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/d7dfc4d545e540d2a65d8972d3f9934a~tplv-k3u1fbpfcp-watermark.image?)
+ 
+</div>
+
+*当访问页面时，会将每层路由的样式文件加载。每个引入的样式文件都对应生成一个stylesheet link*
+
+在构建阶段，css文件原样复制到了build目录，既没有被合并也没有压缩。够直接，但是看起来不是直接生产可用的方案🤔。考虑到css文件会直接阻塞页面渲染，基于性能要求会希望其尽快加载完成。
+
+
+
+#### 数量 - CSS合并
+
+分析一下为什么这里会有这么多css文件？全局样式（TUX组件样式、标准化样式等）、当前路由样式、当前路由使用到的组件样式...都是独立的css。基于游戏社区产品投放环境考虑（东南亚、拉美 网络环境较差），需要合理地减少加载css文件数量。
+
+减少css数量就要进行合并，合并结果是以路由维度引入单个css，与Remix维护数据加载方式一致。合并方式希望能够保留以组件维度开发css的习惯，同时给合并留下一些灵活性，@import+打包工具合并处理就是一个不错的选择。
+
+<div data-type="transform-warn" data-index="154"> 
+
+ ![image](http://p3-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/b8d90c9217f64142880d6fbbad90ee5a~tplv-k3u1fbpfcp-watermark.image?)
+ 
+</div>
+
+<div data-grid-img>
+
+ ![image](http://p1-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/b232cfce2bbb43bc9925ecea1050eede~tplv-k3u1fbpfcp-watermark.image?)
+
+![image](http://p1-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/8012e8317d714d618a372c5bef3bcb3c~tplv-k3u1fbpfcp-watermark.image?)
+ 
+</div>
+
+> 路由维度引入样式文件，在不同路由样式下手动`@import`组件样式，利用[parcel-css](https://github.com/parcel-bundler/parcel-css)工具打包进对应路由样式中。单页面来看CSS文件数量从 21 个减少到 2 个。
+
+
+
+#### 体积 - 压缩
+
+压缩是解决css文件体积最简单直接的方式。
+
+<div data-type="transform-warn" data-index="160"> 
+
+ ![image](http://p6-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/974378b0f2e44a1a82769fb1805c729a~tplv-k3u1fbpfcp-watermark.image?)
+ 
+</div>
+
+
+> 使用parcel-css压缩后，体积 135KB + 1.82KB -> 109KB + 1.64KB，体积减少20%。
+
+还不错 但还不够！
+
+
+
+#### 体积 - 裁剪
+
+除此之外，游戏社区场景中全量引入TUX样式也是css体积大的“元凶”，TUX样式包含组件样式及原子样式（类似TailwindCSS）。应用组件库的项目通常不会使用到所有组件，原子样式也只会使用到其中一小部分，加载大量没有被页面使用到的样式无疑是一种浪费。解法是什么？将用到的样式挑选出来🧙‍♂️。
+
+这里使用到一个工具PurgeCSS：它分析传入的content文件和CSS，匹配后从 CSS 中删除未使用的选择器，从而生成更小的 CSS 文件。
+
+<div data-type="transform-warn" data-index="167"> 
+
+ ![image](http://p9-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/8520d5f666be45fda37b42de427af804~tplv-k3u1fbpfcp-watermark.image?)
+ 
+</div>
+
+
+> 使用PurgeCSS裁剪后，体积 109KB -> 37KB，体积减少66%。
+
+
+#### 🌟 总结如下
+
+<div data-type="transform-warn" data-index="171"> 
+
+ ![image](http://p3-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/4d84d31623a340df88c96afc641093c2~tplv-k3u1fbpfcp-watermark.image?)
+ 
+</div>
+
+*合并、压缩、裁剪处理后的**CSS**文件数量**（21 => 2）**和体积**（减少72%）**都得到了优化 😊*
+
+
+
+### 给TUX组件库做Tree Shaking
+
+Remix底层打包工具是esbuild，跟之前熟悉的webpack完全不同。是否支持Tree Shaking呢？有必要对打包产物做一次分析
+
+esbuild本身是支持bundle analyze的。但Remix并没有把这个能力开放出来，你只能通过改源码的方式去改变esbuild的行为。社区里已经有同好提供了相关代码 - https://github.com/kiliman/remix-esbuild-analysis
+
+<div data-type="transform-warn" data-index="177"> 
+
+ ![image](http://p1-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/fc1da75f28484539ad1dcd09388edd7a~tplv-k3u1fbpfcp-watermark.image?)
+ 
+</div>
+
+惊人的发现引入的TUX组件代码体积竟然有439KB，而且400KB是没有用到的xgplayer相关代码。经过和TUX同学友好沟通后，判断出应该是Remix本身打包的问题，导致这部分Tree Shaking没有生效
+
+#### 解决方案 - 给TUX打补丁
+
+配合patch-package，我们可以直接改项目中TUX的代码，把TUXPlayer引用注释掉
+
+<div data-type="transform-warn" data-index="181"> 
+
+ ![image](http://p3-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/f9a3303d542147daac1de2c5d620b1a2~tplv-k3u1fbpfcp-watermark.image?)
+ 
+</div>
+
+效果如下图 - 体积减小90%
+
+<div data-type="transform-warn" data-index="183"> 
+
+ ![image](http://p6-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/993a30fc551741c78c954ba8a6ba0186~tplv-k3u1fbpfcp-watermark.image?)
+ 
+</div>
+
+
+
+## 最终效果&#x20;
+
+<div data-type="transform-warn" data-index="186"> 
+
+ ![image](http://p3-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/099300cc497d4170a4a97cf9c04a8358~tplv-k3u1fbpfcp-watermark.image?)
+ 
+</div>
+
+**接近7s 优化到 2s左右**
+
+
+
+## 总结
+
+Remix整个框架还是比较有意思的，路由级别的数据请求+嵌套路由解决了网络请求waterfal的问题，而网络就是性能最大的卡点
+
+同时开发体验也非常不错。整体的设计理念和哲学也很优秀，值得大家多多学习
+
+目前Remix已在我们多个项目中落地，效果都非常不错，另外还有很多有趣的特性我们也正在尝试和调研中，比如Streaming，边缘机房部署等。
+
+## 引用
+
+*   https://remix.run/

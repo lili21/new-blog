@@ -1,0 +1,209 @@
+---
+date: 2022-10-30
+title: Remix实战系列 - HTTP缓存
+---
+
+
+HTTP缓存相信大家都不陌生。`ETag`, `Cache-Control`等关键词也在提到HTTP缓存时立马出现在脑海中。但很多人可能并没有真正的配置过，至少我在做SSR项目前，几乎没有在真正的项目里配置过。
+
+一是因为CSR项目需要配缓存的只有静态资源 - JS，CSS，图片等。而这些都是直接托管在CDN上，CDN的缓存配置基本已经配好了。
+
+二是因为这些缓存配置一般都是由专门的运维同学维护的，我们前端开发并不会直接去更改。
+
+SSR改变了这两点：
+
+一是我们可以给HTML加上缓存
+
+二是我们可以动态的，根据每个项目，甚至同一个项目里不同的页面，加上不同的缓存策略
+
+接下来我们通过一个非常简单的nodejs服务来看下怎么给HTML加上缓存
+
+<CH.Section>
+
+```js server.js
+const { createServer } = require("http");
+const server = createServer((req, res) => {
+  const html = createPage("home");
+  res.end(html);
+});
+
+server.listen(3000);
+
+function createPage(title) {
+  return `
+    <!doctype html>
+    <html>
+      <head>
+        <meta charset=utf-8 />
+        <title>${title}</title>
+      </head>
+      <body>
+        <h1>${title}</h1>
+        ${Array.from({ length: 1000 })
+          .map(() => "<div>stupic junk</div>")
+          .join("\n")}
+      </body>
+    </html>
+  `;
+}
+```
+
+[Array.from部分](focus://19:21)是只是为了增加一下HTML的体积，模拟一下真实的场景
+
+</CH.Section>
+
+用浏览器访问一下我们的应用，看看网络请求
+
+<img width="738" alt="Screen Shot 2022-10-30 at 00 28 57" src="https://user-images.githubusercontent.com/4456380/198842602-793c824e-1595-4571-b5e9-e712741a2fae.png"></img>
+
+访问一次我们的页面需要下载23.3KB的资源
+
+我们没有加任何的缓存相关的响应头，如果再次访问我们的页面，此时浏览器会怎么处理呢？没有缓存吗？是也不是。
+
+如果我们刷新页面，从网络面板可以看出每一次请求都直接到了服务器，没有缓存 - 这是是
+但如果我们点击浏览器的后退/前进按钮来访问页面呢？此时浏览器是有缓存的 - 这是不是。想了解这个缓存的同学可以参考[bfcache](https://web.dev/bfcache/)，本文不过多探讨。
+
+我们可以直接加上`Cache-Control: no-store`响应头，告诉浏览器不要缓存。此时[bfcache](https://web.dev/bfcache)会失效，每一次访问都不会走缓存
+
+```js focus=4:6
+const { createServer } = require("http");
+const server = createServer((req, res) => {
+  const html = createPage("home");
+  res.writeHead(200, {
+    "Cache-Control": "no-store",
+  });
+  res.end(html);
+});
+```
+
+## etag
+
+不过每次访问都要下载23.3KB也是挺浪费的，来加一个协商缓存吧。我们加一个`etag`来看下协商缓存是怎么一回事
+
+```js focus=4:7
+const { createServer } = require("http");
+const server = createServer((req, res) => {
+  const html = createPage("home");
+  res.writeHead(200, {
+    "Cache-Control": "no-cache",
+    "etag": "12345678"
+  });
+  res.end(html);
+});
+```
+
+![image](https://user-images.githubusercontent.com/4456380/198843812-a2e5dbe6-ce19-4d23-b1d2-e3d332962e38.png)
+
+当我们再一次访问这个链接时，浏览器在请求头里就会带上这个`etag`
+
+![image](https://user-images.githubusercontent.com/4456380/198843844-ee9ea0d1-d380-4dc6-b6c6-b2f198278add.png)
+
+所以我们可以在服务端做一个判断，如果请求头里的`If-None-Match`与`etag`相等，我们就可以直接返回304状态码。
+
+```js focus=4:7
+const { createServer } = require("http");
+const server = createServer((req, res) => {
+  const html = createPage("home");
+  if (req.headers["if-none-match"] === "12345678") {
+    res.writeHead(304);
+    res.end();
+  }
+  res.writeHead(200, {
+    "Cache-Control": "no-cache",
+    etag: "12345678",
+  });
+  res.end(html);
+});
+```
+
+![image](https://user-images.githubusercontent.com/4456380/198844065-b4d3c09e-33d6-4bf2-8f46-4beb0d415757.png)
+
+可以看到，此时再访问时网络传输大小只有113B
+
+从上面的例子可以看到，`etag`是一个资源的标识，可以用来判断资源内容是否有变化。所以在实际应用中我们需要根据资源内容来生成
+
+```js focus=2:6,10
+const { createServer } = require("http");
+const { createHash } = require("crypto");
+
+function md5(str) {
+  return createHash("md5").update(str).digest("hex");
+}
+
+const server = createServer((req, res) => {
+  const html = createPage("home");
+  const etag = md5(html);
+  if (req.headers["if-none-match"] === etag) {
+    res.writeHead(304);
+    res.end();
+  }
+  res.writeHead(200, {
+    "Cache-Control": "no-cache",
+    etag,
+  });
+  res.end(html);
+});
+```
+
+### max-age
+
+我们也可以给HTML加上强缓存
+
+```js focus=5:7
+const { createServer } = require("http");
+
+const server = createServer((req, res) => {
+  const html = createPage("home");
+  res.writeHead(200, {
+    "Cache-Control": "max-age=60",
+  });
+  res.end(html);
+});
+
+server.listen(3000);
+```
+
+`max-age=60`就是缓存60s。在60s内再次请求会直接走本地缓存，不会请求到服务器
+![image](https://user-images.githubusercontent.com/4456380/198844515-1d1c8fa4-df3a-4150-8e56-8c12ff77594e.png)
+
+不过给HTML加上缓存是需要万分注意的。HTML不像其他静态资源，可以通过改文件名的形式使缓存失效。一旦在浏览器中缓存，只能等缓存过期，或者用户主动删除缓存。所以HTML的缓存时间一般会设置的比较短，主要原因是`max-age`缓存是直接存在用户浏览器里的，一旦缓存，我们就没法主动删除了。
+
+### s-maxage
+
+有没有一种缓存既可以用来缓存HTML，又受我们控制，可以主动删除的呢？CDN缓存。
+
+一般来讲，用户通过域名访问我们的服务，是会经过一层CDN的。
+
+![image](https://user-images.githubusercontent.com/4456380/198845213-f8d86ded-a20b-4208-bbe0-5fda97250512.png)
+
+我们可以利用`Cache-Control: s-maxage=3600`响应头，让CDN缓存我们的HTML，而浏览器不缓存。这样有两个好处
+
+1. 其他用户访问到这个CDN节点时，CDN会直接利用缓存。我们的服务器压力瞬间减小
+2. CDN缓存我们是可以主动更新和失效的，是受我们控制的
+
+不过每个公司的基建都不一样，是否支持`s-maxage`可能需要咨询一下你们的运维了。另外`max-age`和`s-maxage`是可以公用的，这一点就交给读者去探索了
+
+另一个有意思的缓存指令是`stale-while-revalidate`，即在缓存失效时先返回缓存给用户，同时在后台去请求服务端更新本地缓存。这也是[swr请求库](https://swr.vercel.app/)的理念来源。不过这个缓存指令比较新，浏览器兼容性是个问题
+
+
+### Remix
+
+现在我们可以给Remix应用加上HTTP缓存了。非常简单，给路由加上一个`headers`的方法就可以了 
+
+```jsx routes/some-route.jsx
+
+export function headers() {
+  return {
+    "Cache-Control": "max-age: 60"
+  }
+}
+
+export default function SomeRoute() {
+  return <div>some route page</div>
+}
+
+```
+
+我们可以根据实际情况，给不同的路由加上不同的缓存时间。以我的博客为例，首页可以缓存1天，详情页可以缓存7天，而关于页可以缓存1个月。在Remix中做到这一点非常简单，只需要在各自路由的`headers`里配置就可以了 
+
+

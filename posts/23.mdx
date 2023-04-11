@@ -1,0 +1,413 @@
+---
+title: Remix实战系列 - Streaming SSR如何提升13%的业务指标
+date: 2023-03-23
+---
+
+## 背景
+
+MLBB战报是一个为MLBB的玩家提供每周游戏数据总结的H5页面。战报只有一个页面，每个模块为一屏，用户通过上划来查看不同模块的数据信息，比如段位、英雄等。
+
+<div data-grid-img>
+
+ ![image](http://p3-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/68933f1b21824b259a5190af5b175547~tplv-k3u1fbpfcp-watermark.image?)
+
+![image](http://p6-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/a0bf75510ab146158f6d9c87c1a726a5~tplv-k3u1fbpfcp-watermark.image?)
+
+![image](http://p3-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/ba2a3f3f4025478f97f1d405fe3ed615~tplv-k3u1fbpfcp-watermark.image?)
+ 
+</div>
+
+虽然经过上一次的SSR改造， 战报页面性能有了极大的提升 - LCP减少70%，7s -> 2s。但也带来了新的问题
+
+
+
+<div data-type="transform-warn" data-index="6"> 
+
+ ## 问题
+ 
+</div>
+
+<div data-type="transform-warn" data-index="7"> 
+
+ ### 服务可用性偏低
+ 
+</div>
+
+讲人话就是页面不可访问的概率偏高，平均每天能收到30个告警
+
+
+<div data-type="transform-warn" data-index="11"> 
+
+ ### 性能劣化
+ 
+</div>
+
+随着需求迭代，周报内容越来越多，由原来的3屏变成了5屏。依赖的接口和下游增多，导致性能劣化。
+
+从第一版SSR优化后的2.3s左右，到现在劣化至2.7s左右
+
+
+
+<div data-type="transform-warn" data-index="15"> 
+
+ ## 原因分析
+ 
+</div>
+
+战报只有一个页面，每个模块为一屏，用户通过上划来查看不同模块的数据信息，比如段位、英雄等。
+
+改造为SSR后，会在服务端获取所有数据，然后生成HTML返回
+
+```js
+// server-side
+const datas = await Promise.all([
+  getUserInfo(),
+  getReport(1), // 首屏 - 总结模块
+  getReport(2), // 第二屏 - 段位
+  getReport(3), // 第三屏 - 常用英雄
+  getReport(4), // 第四屏 - 名人堂
+  getRport(5) // 第五屏 - 尾页
+])
+
+const html = renderHTML(datas);
+
+res.send(html);
+```
+
+这么做两个问题
+
+<div data-type="transform-warn" data-index="20"> 
+
+ ### 任意接口报错，都会导致页面无法访问
+ 
+</div>
+
+假设下游接口SLA为99.9%，我们服务的SLA就降到了 99.9^6 = 99.4%
+
+<div data-type="transform-warn" data-index="22"> 
+
+ ### 首屏性能受最慢接口影响
+ 
+</div>
+
+假设首屏接口200ms就返回了，但第四屏接口花了600ms，想想看我们的页面要等多久才能渲染？首屏性能为什么要受非首屏内容影响？
+
+
+
+<div data-type="transform-warn" data-index="25"> 
+
+ ## 解决方案 SSR + CSR
+ 
+</div>
+
+我们是不是可以首屏用SSR，非首屏用CSR？
+
+```js
+// server-side
+const datas = await Promise.all([
+  getUserInfo(),
+  getReport(1)
+])
+
+const html = renderHTML(datas);
+
+res.send(html);
+
+
+// client-side - xxx
+```
+
+
+
+这样可以解决我们的问题，服务可用性提高，首屏性能只依赖首屏的接口。但我们关注首屏性能，不代表我们只关注首屏性能
+
+这样做的缺点是其他屏的渲染又回到了CSR模式，也就有CSR模式的问题 - 网络请求瀑布流，导致其他屏的渲染时机被推迟，影响用户的整体体验
+
+<div data-type="transform-warn" data-index="31"> 
+
+ ![image](http://p9-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/7e265e781bc0407eb3c7f9c5e76df06d~tplv-k3u1fbpfcp-watermark.image?)
+ 
+</div>
+
+是否能做到既要又要呢？
+
+<div data-type="transform-warn" data-index="33"> 
+
+ ## 解决方案 Streaming SSR
+ 
+</div>
+
+
+
+Streaming SSR这个说法可能比较新，但是这个理念和实践最早可以追溯到十几年前。比如Facebook早在2009年就公开了一种叫「BigPipe」的方案，其实就是Streaming SSR。感兴趣的可以参考 [BigPipe: Pipelining web pages for high performance](http://facebook.com/notes/10158791368532200/)
+
+
+
+<div data-type="transform-warn" data-index="40"> 
+
+ ### 原理解析
+ 
+</div>
+
+传统的SSR就是在服务端生成整个HTML，一起返回。而Streaming SSR就是在服务端分开生成HTML，分开传输HTML
+
+```js
+// server-side - 传统SSR
+const datas = await Promise.all([
+  getUserInfo(),
+  getReport(1), // 首屏 - 总结模块
+  getReport(2), // 第二屏 - 段位
+  getReport(3), // 第三屏 - 常用英雄
+  getReport(4), // 第四屏 - 名人堂
+  getRport(5) // 第五屏 - 尾页
+])
+
+const html = renderHTML(datas);
+
+res.send(html);
+```
+
+```js
+// server-side - Streaming SSR
+Promise.all([
+  getUserInfo(),
+  getReport(1),
+]).then(datas => {
+  const html = renderHtml(datas);
+  res.send(html);
+}) // 首屏
+
+getReport(2).then(data => {
+  const html = renderHtml(data);
+  res.send(html);
+}) // 第二屏 - 段位
+
+...
+```
+
+从代码逻辑可以看出，Streaming SSR实现了我们既要又要的目标 - 既保证了首屏性能和服务可用性，又没有推迟非首屏数据的加载时机，保证了非首屏的用户体验
+
+
+
+<div data-type="transform-warn" data-index="46"> 
+
+ ## 实战
+ 
+</div>
+
+React 18已经支持了Streaming SSR，推荐大家直接使用框架来体验，如NextJS或Remix。这里给大家展示下Remix框架中的用法
+
+
+
+Remix中每个路由组件都可以定义一个loader函数，用来做数据请求（函数执行在服务端）
+
+```jsx
+import { json } from '@remix-run/node';
+import { useLoaderData } from '@remix-run/react';
+
+// loader 获取数据
+export const loader = async () => {
+  const datas = await Promise.all([
+    getUserInfo(),
+    getReport(1), // 首屏 - 总结模块
+    getReport(2), // 第二屏 - 段位
+    getReport(3), // 第三屏 - 常用英雄
+    getReport(4), // 第四屏 - 名人堂
+    getRport(5) // 第五屏 - 尾页
+  ])
+  
+  return json(datas);
+}
+
+
+export default function Page() {
+  // 组件中通过userLoaderData获取loader返回的数据
+  const [userInfo, firstReport, secondReport] = useLoaderData();
+  return (
+    <div>
+      <div>{userInfo.name}</div>
+      <div>{firstReport.win_rate}</div>
+      <div>{secondReprot.level}</div>
+    </div>
+  )
+}
+```
+
+代码如上所示。那怎么改造既要又要的效果呢？Remix在[1.11.0](https://github.com/remix-run/remix/releases/tag/remix%401.11.0)版本中正式加上了Defer API。使用方法如下
+
+
+
+```js
+import { defer } from '@remix-run/node';
+
+// loader 获取数据
+export const loader = async () => {
+  const otherDatas = Promise.all([
+    getReport(2), // 第二屏 - 段位
+    getReport(3), // 第三屏 - 常用英雄
+    getReport(4), // 第四屏 - 名人堂
+    getRport(5) // 第五屏 - 尾页
+  ])
+  const datas = await Promise.all([
+    getUserInfo(),
+    getReport(1), // 首屏 - 总结模块
+  ])
+  
+  return defer({ datas, otherDatas })
+}
+```
+
+我们把loader中的请求分成了两部分，一部分是首屏渲染需要的数据，这部分数据我们还是要等他请求完成。一部分是首屏外的数据，注意这里我们没有await，所以loader函数不用等这些接口完成就可以返回数据。
+
+那在组件中要怎么使用这些数据呢？
+
+```jsx
+import { Suspense } from 'react';
+import { useLoaderData } from '@remix-run/react'; 
+
+export default function Page() {
+  // 组件中通过userLoaderData获取loader返回的数据
+  const { datas, otherDatas } = useLoaderData();
+  const [userInfo, firstReport] = data;
+  return (
+    <div>
+      <div>{userInfo.name}</div>
+      <div>{firstReport.win_rate}</div>
+      <div>{otherDatas???}</div> // otherDatas怎么用？
+    </div>
+  )
+}
+```
+
+我们依然使用useLoaderData来获取loader中返回的数据，datas就是普通数据类型，和原来的用法一样。但是otherDatas要怎么使用呢？otherDatas是一个Promise吗？Bingo，otherDatas在这里确实是一个Promise，所以我们需要处理pending，fulfil，reject三种状态，如下所示
+
+```jsx
+import { Suspense } from 'react';
+import { Await, useAsyncValue, useAsyncError } from '@remix-run/react';
+
+function NonFirstPage() {
+  return (
+    <Suspense fallback={<div>loading...</div>}>
+        <Await resolve={otherDatas} errorElement={<ErrorElement />}>
+          <OtherPages />
+        </Await>
+      </Suspense>
+  )
+}
+
+function OtherPages() {
+  const [secondReport, thirdReport] = useAsyncValue();
+  return (
+    <div>{secondReprot.level}</div>
+    ...
+  )
+}
+
+function ErrorElement() {
+  const error = useAsyncError();
+  // report it and render fallback content
+  return <div>errror fallback content</div>
+}
+```
+
+我们是用Suspense来处理pending态。使用remix提供的Await组件，以及useAsyncValue, useAsyncError来处理fulfil和reject态。
+
+
+
+业务层面的改造就已经完成了，可以看到Defer API的使用还是非常简单的，改造成本还是很低的
+
+
+
+
+ ## 效果
+
+**报警数环比下降90%**
+
+![image](http://p1-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/7f597631620d4e928c4dfe0db1c468e6~tplv-k3u1fbpfcp-watermark.image?)
+
+**TTFB周环比下降约19%**
+
+![image](http://p6-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/59922b27ebed4a98be4b54e55dc68c9d~tplv-k3u1fbpfcp-watermark.image?)
+
+**LCP周环比下降约10%**
+
+![image](http://p6-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/03e54f075b62498c960f92da4f7da11d~tplv-k3u1fbpfcp-watermark.image?)
+
+**页面打开率提升13%**
+
+![image](http://p1-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/55060c30412343439e3bff6b9f471275~tplv-k3u1fbpfcp-watermark.image?)
+
+
+
+<div data-type="transform-warn" data-index="66"> 
+
+ ## 遇到的问题
+ 
+</div>
+
+<div data-type="transform-warn" data-index="67"> 
+
+ ### **缓冲区导致Streaming失效**
+ 
+</div>
+
+遇到的主要问题就是网络代理层可能会导致HTML分开传输失效，导致性能层面的提升失效。以我们的服务为例，服务是通过Goofy Stack部署的，底层是FaaS，网络请求会经过FaaS的网关层
+
+<div data-type="transform-warn" data-index="69"> 
+
+ ![image](http://p6-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/4fc0859d8fc4491f9fb2cb2e028184c4~tplv-k3u1fbpfcp-watermark.image?)
+ 
+</div>
+
+预期的效果：服务返回的HTML片段，立即返回给浏览器，浏览器收到后就开始渲染
+
+实际的效果：FaaS网关会有一个4KB大小的缓存区，如果返回的HTML片段小于4KB，网关会等待下一个HTML片段，直到超出4KB，才会开始返回给浏览器
+
+
+
+虽然这个会影响Streaming带来的性能提升效果，但是服务可用性的提升是实打实的，也不受缓冲区的影响。
+
+<div data-type="transform-warn" data-index="74"> 
+
+ ### React 18
+ 
+</div>
+
+**useEffect调用两次**
+
+> https://reactjs.org/blog/2022/03/08/react-18-upgrade-guide.html#updates-to-strict-mode
+
+页面中的可视化图表消失，经排查是useEffect调用两次导致的。升级相关依赖后修复
+
+
+
+**hydration报错**
+
+React 18的hydration处理逻辑和17不同，升级后线上有相关报错，报错的组件会降级到CSR重新渲染一遍。
+
+<div data-type="transform-warn" data-index="81"> 
+
+ ![image](http://p3-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/8e1ed5e3cf8c4771b3698b2754db14b0~tplv-k3u1fbpfcp-watermark.image?)
+ 
+</div>
+
+相关issues
+
+*   [https://github.com/remix-run/remix/discussions/5244](https://github.com/remix-run/remix/discussions/5244)
+
+*   [https://github.com/facebook/react/issues/24430#issuecomment-1442416195](https://github.com/facebook/react/issues/24430#issuecomment-1442416195)
+
+
+
+<div data-type="transform-warn" data-index="86"> 
+
+ ## 参考链接
+ 
+</div>
+
+*   [Async Fragments: Rediscovering Progressive HTML Rendering with Marko](https://tech.ebayinc.com/engineering/async-fragments-rediscovering-progressive-html-rendering-with-marko/)
+
+*   [New Suspense SSR Architecture in React 18](https://github.com/reactwg/react-18/discussions/37)
+
+*   [Remix Streaming介绍](https://remix.run/docs/en/v1/guides/streaming)
+

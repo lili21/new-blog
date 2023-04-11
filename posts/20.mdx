@@ -1,0 +1,156 @@
+---
+date: 2022-09-29
+title: Remix实战系列 - 路由预加载
+---
+
+
+先来看个视频
+
+<video controls src="https://user-images.githubusercontent.com/4456380/194499209-c59ba2b2-d5be-447f-8517-16186943d08d.mov"></video>
+
+列表页点击访问详情页的场景，从点击到详情页面展示大概花了2s中。网络面板中可以看出
+
+<img width="552" alt="Screen Shot 2022-10-07 at 15 42 15" src="https://user-images.githubusercontent.com/4456380/194499527-235b4057-2b6f-48b9-9bb5-f8d54491ff02.png"></img>
+
+数据请求，静态资源JS，样式是并行请求的，没有出现JS+Data Fetching的瀑布流情况。Remix对于网络请求的优化还是做的非常好的。
+
+但2s的耗时显然过长了，用户体验不够好。如何优化呢？- **预加载**
+
+## 原理
+> Prefetch, Preload
+
+原生的`link`标签，本身就支持预加载。
+
+
+**预加载JS**
+
+```html
+<link rel="preload" href="index.js" />
+```
+
+**预加载JS，ES Module版本**
+
+```html
+<link rel="modulepreload" href="index-es.js" />
+```
+
+
+**预加载样式**
+
+```html
+<link rel="prefetch" href="index.css" as="style" />
+```
+
+对于静态资源的预加载，相信有些同学已经是接触过甚至比较熟悉的。那对于后端接口呢？我们也可以用`link`标签来做
+
+```html
+<link rel="prefetch" href="/api/data" as="fetch" />
+```
+
+## Remix中怎么做？
+
+非常简单，如下所示，`Link`组件的prefetch属性，可以用来控制是否要预加载下一个路由的静态资源（JS，CSS等）和接口数据
+
+```jsx
+<Link /> {/* defaults to "none" */}
+<Link prefetch="none" />
+<Link prefetch="intent" />
+<Link prefetch="render" />
+```
+
+- **none** ，默认值，不做任何预加载
+- **intent**，当用户鼠标遇到链接上时，开始预加载
+- **render**，组件渲染时即开始预加载
+
+对于我们这个列表场景，**intent**符合我们的要求。我们看下加上**intent**后的效果
+
+<video src="https://user-images.githubusercontent.com/4456380/194508368-94316348-efec-40de-8086-a4aff6b42263.mov" controls></video>
+
+当鼠标移到链接上时，该链接对应路由的接口数据，JS，CSS都开始加载。等我们点击的时候，这些资源都是直接从缓存中读取，从点击到页面展示几乎没有延迟。
+
+## 问题 - 缓存
+
+再来看一个视频
+<video src="https://user-images.githubusercontent.com/4456380/194511997-6be40bcc-443f-4a55-b3ff-b255729b3a24.mov" controls></video>
+
+每次鼠标移到链接上时，都会发送接口请求。这是因为我们没有为接口设置缓存，在Remix中，为接口设置缓存也是非常的简单
+
+```jsx focus=5
+export const loader = async () => {
+  const data = await getFromDB();
+  return json(data, {
+    headers: {
+      'Cache-Control': 'max-age=60'
+    }
+  });
+}
+```
+
+只需要在`loader`中添加`Cache-Control`的响应头即可。可不可以只给`prefetch`请求加缓存呢？这样也可以避免影响到正常的接口请求，如果业务的实时性要求相对高的话。我们可以通过`Purpose`请求头来判断
+
+> 不同浏览器会有不同的请求头，具体可以参考 [prefetch-headers](https://lionralfs.dev/blog/exploring-the-usage-of-prefetch-headers)
+
+```jsx
+export const loader = async () => {
+  const data = await getFromDB();
+  let headers = new Headers();
+  let purpose =
+    request.headers.get("Purpose") ||
+    request.headers.get("X-Purpose") ||
+    request.headers.get("Sec-Purpose") ||
+    request.headers.get("Sec-Fetch-Purpose") ||
+    request.headers.get("X-Moz");
+
+  if (purpose === "prefetch") {
+    headers.set("Cache-Control", "max-age=60");
+  }
+  return json(data, { headers });
+}
+```
+
+我们也可以给所有`loader`统一加上这个处理。在`entry.server.js`中暴露出`handleDataRequest`方法就可以实现这一点
+
+```js entry.server.js
+export const handleDataRequest = async (response, { request }) => {
+  let isGet = request.method.toLowerCase() === "get";
+  let purpose =
+    request.headers.get("Purpose") ||
+    request.headers.get("X-Purpose") ||
+    request.headers.get("Sec-Purpose") ||
+    request.headers.get("Sec-Fetch-Purpose") ||
+    request.headers.get("Moz-Purpose");
+  let isPrefetch = purpose === "prefetch";
+
+  // 判断是否是Get，是否是预请求，是否有自定义的Cache-Control
+  if (isGet && isPrefetch && !response.headers.has("Cache-Control")) {
+    // we will cache for 10 seconds only on the browser
+    response.headers.set("Cache-Control", "private, max-age=10");
+  }
+
+  return response;
+}
+```
+
+## 问题 - 移动端怎么处理？
+
+移动端没有鼠标事件，用户在点击链接前我们是无法感知的，就无法通过`prefetch=intent`去做预加载了。`prefetch=render`是一个解决方案，但也是在链接/路由比较少的情况下。但如果是我们这个列表场景，页面上有很多个链接/路由，如果都做预加载的话，就有点太浪费用户的流量了，而且实际效果可能并不会。那就无解了吗？
+
+谷歌团队在2018年推出的[Guess.js](https://guess-js.github.io/)是一个解决方案，通过线上访问数据，分析出页面上用户最有可能访问的链接，优先预加载这些链接。
+
+
+## 问题 - 兼容性
+
+[can i use-prefetch](https://caniuse.com/?search=prefetch)
+
+<img width="738" alt="Screen Shot 2022-10-07 at 17 10 15" src="https://user-images.githubusercontent.com/4456380/194518958-77cf2594-af70-422a-9ae7-0e9ba5906a2a.png"></img>
+
+**Safari**不支持。如果你是移动端项目的话，就需要考虑这一点，以及如何处理
+
+## 总结
+
+预加载方案Remix考虑的是很完善的。
+开发体验上看，预加载非常简单，只需要加个属性即可，配合一定缓存策略即可。
+用户体验上看，预加载不仅包括常见的静态资源，还包括接口数据。让路由跳转，页面切换的耗时非常少，给用户带来应用级别的体验。
+非常值得大家去尝试
+
+
