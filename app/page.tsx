@@ -10,7 +10,7 @@ export default async function Home() {
   });
   return (
     <div style={{ fontFamily: "system-ui, sans-serif", lineHeight: "1.4" }}>
-      <h2>文章</h2>
+      {/* <h2>文章</h2> */}
       <ol>
         {posts.map((d) => (
           <Article key={d._id} title={d.title} date={d.date} url={d.url} />
@@ -31,10 +31,9 @@ function Article({
 }) {
   return (
     <li>
-      <span style={{ width: "100px" }}>
-        {format(new Date(date), "yyyy-MM-dd")}
-      </span>
       <Link href={url}>{title}</Link>
+      <br />
+      <em>{format(new Date(date), "yyyy-MM-dd")}</em>
     </li>
   );
 }

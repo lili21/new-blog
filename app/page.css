@@ -8,17 +8,18 @@ ol {
 }
 
 li {
-  display: flex;
+  /* display: flex; */
   gap: 6px;
 }
 
 li a {
-  padding-left: 6px;
+  font-size: 16px;
+  /* font-weight: 500; */
   text-decoration: none;
   color: rgb(23, 23, 23);
 }
 
-li span {
+li em {
   color: rgb(133, 133, 133);
 }
 
