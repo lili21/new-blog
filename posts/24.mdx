@@ -19,7 +19,7 @@ function Test(props) {
 }
 ```
 
-这里的问题在于_`useEffect`_是在组件渲染后再执行的，而_`setCount`_又会导致组件重新渲染。所以这里其实多了一次没有必要的渲染。
+这里的问题在于 _`useEffect`_ 是在组件渲染后再执行的，而 _`setCount`_ 又会导致组件重新渲染。所以这里其实多了一次没有必要的渲染。
 
 解法也非常简单，如下
 
@@ -33,7 +33,7 @@ function Home(props) {
 }
 ```
 
-[`isOdd`](focus://2) 状态是完全和`props.number`挂钩的，我们只需要基于`props`根据我们的逻辑去计算一个新的值就可以了。如果这个计算比较耗时，那我们还可以通过`useMemo`去实现
+[`isOdd`](focus://2) 状态是完全和`props.number`挂钩的，我们只需要基于`props`根据我们的逻辑去计算一个新的值就可以了。如果这个计算比较耗时，那我们还可以通过 _`useMemo`_ 做缓存
 
 </CH.Section>
 
@@ -67,18 +67,15 @@ function Test() {
 }
 ```
 
-[`<Count />`](focus://3:5)这么写咋一看好像没啥问题，CR时也就是会说`Count`最好定义在组件外，免得每次`Test`组件渲染时都重新定义一个。可是重新定义一个函数有啥问题呢？我们给`Count`加点料
+[`<Count />`](focus://3:5)这么写咋一看好像没啥问题。我们给 _`<Count />`_ 加点逻辑
 
 </CH.Section>
 
 <CodeSandbox id="react-common-mistake-forked-t7he70" />
 
-可以在上面体验一下，多点击几次「add」，然后再在输入框里随意输入，就能看到`count`被重置为0了。
+可以多点击几次「add」按钮，然后在输入框里随意输入任意字符，就能看到`count`被重置为0了。
 
-这是因为每次输入框输入是，就会调用`setValue`，`Test`组件就会重新渲染。而每次渲染，`Count`组件都是一个新定义的组件，所以之前的`Count`会被卸载，而新的`Count`会被装载渲染，既然是新的`Count`，那内部的状态也肯定是新的了。
-
-
-所以记住，**不要再组件内部定义组件**
+这就是在组件内部定义组件的问题了，每次渲染，_`Count`_ 都是一个新组件，内部的状态也会重新初始化，所以`count`被重置为了0。
 
 ## 错误三：直接执行组件函数
 
@@ -100,7 +97,11 @@ function Test() {
 ```
 
 
-[`Input()`](focus://9)这么调用函数运行起来好像没啥问题啊，那`Input()`和`<Input />`有啥区别呢？先来加一个按钮来控制这个输入框的显示和隐藏
+[_`Input()`_](focus://9)这么调用函数运行起来好像没啥问题啊，那 _`Input()`_ 和 _`<Input />`_ 有啥区别呢？我们加一个按钮来控制这个输入框的显示和隐藏
+
+</CH.Section>
+
+<CH.Section>
 
 ```jsx
 function Input() {
@@ -124,18 +125,16 @@ function Test() {
 
 </CH.Section>
 
-可以试一下这个
-
 <CodeSandbox id="react-common-mistake-13h7s5" />
 
-点击「hide input」就会触发一个报错
+点击「hide input」
 
 ```bash
 Error
 Rendered fewer hooks than expected. This may be caused by an accidental early return statement.
 ```
 
-当我们直接执行组件函数时，上面的代码和以下代码效果是一样的
+当我们直接执行组件函数时，等价于下面这段代码
 
 <CH.Section>
 
@@ -157,17 +156,18 @@ function Test() {
 }
 ```
 
-[`Input()`](focus://9:12)在这里并不是一个组件，只是一个函数的封装。所以
+[_`Input()`_](focus://9:12)在这里并不是一个组件，只是一个函数的封装。所以
+
+<CH.Section>
 
 ```jsx
 const [value, setValue] = useState('')
 ```
 
-就变成了`Test`组件的第二个Hook。而`visible`状态变化时，第二个Hook就可能执行，也可以不执行。这就违反了React Hook的要求，就导致了报错~
+就变成了 _`Test`_ 组件的第二个Hook。而 _`visible`_ 状态变化时，第二个Hook就可能执行，也可能不执行。这就违反了React Hook的要求，从而导致报错~
 
-这就是`Input()`和`<Input />`的区别，`<Input />` 的语法最终会调用`React.createElement`，也就让react知道这是一个组件，可以有自己的state和hook。
+这就是 _`Input()`_ 和 _`<Input />`_ 的区别，`<Input />` 的语法最终会调用`React.createElement`，也就是创建一个组件，可以有自己的state和hook。
 
-</CH.Section>
 
 ## 结语
 
