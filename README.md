@@ -2,7 +2,7 @@
 
 Tech Stack
 
-- Next with appDir 
+- NextJS
 - Contentlayer
-- codehide
+- codehike
 - vercel
