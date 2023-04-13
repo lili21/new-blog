@@ -67,7 +67,7 @@ function Test() {
 }
 ```
 
-[`<Count />`](focus://3:5)这么写咋一看好像没啥问题。我们给 _`<Count />`_ 加点逻辑
+[_`<Count />`_](focus://3:5)这么写咋一看好像没啥问题。我们给 _`<Count />`_ 加点逻辑
 
 </CH.Section>
 
@@ -166,7 +166,7 @@ const [value, setValue] = useState('')
 
 就变成了 _`Test`_ 组件的第二个Hook。而 _`visible`_ 状态变化时，第二个Hook就可能执行，也可能不执行。这就违反了React Hook的要求，从而导致报错~
 
-这就是 _`Input()`_ 和 _`<Input />`_ 的区别，`<Input />` 的语法最终会调用`React.createElement`，也就是创建一个组件，可以有自己的state和hook。
+这就是 _`Input()`_ 和 _`<Input />`_ 的区别， _`<Input />`_  这种JSX的写法， 最终会转换成`React.createElement`的函数调用，也就是创建一个组件，所以会有自己的state和hook。
 
 
 ## 结语
