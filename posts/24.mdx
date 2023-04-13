@@ -71,6 +71,28 @@ function Test() {
 
 </CH.Section>
 
+```jsx
+function Test() {
+  const [value, setValue] = useState('')
+  const Count = () => {
+    const [count, setCount] = useState(0);
+    return (
+      <div>
+        <h1>count {count}</h1>
+        <button onClick={() => setCount((c) => c + 1)}>add</button>
+      </div>
+    );
+  };
+
+  return (
+    <div>
+      <input value={value} onChange={e => setValue(e.target.value)} />
+      <Count />
+    </div>
+  )
+}
+```
+
 <CodeSandbox id="react-common-mistake-forked-t7he70" />
 
 可以多点击几次「add」按钮，然后在输入框里随意输入任意字符，就能看到`count`被重置为0了。
