@@ -20,20 +20,16 @@ export function generateMetadata({
   const post = getBlogDetail(params.id);
   if (post) {
     const { title } = post;
-    const url = new URL(
-      "https://vercel-og-nextjs-coral-five.vercel.app/api/param"
-    );
-    url.searchParams.set("title", title);
     return {
       title,
       openGraph: {
         title,
         url: `https://blog.lili21.me/blog/${params.id}`,
-        images: [url.toString()],
+        images: [`/og?title=${title}`],
       },
       twitter: {
         title,
-        images: [url.toString()],
+        images: [`/og?title=${title}`],
       },
     };
   } else {
