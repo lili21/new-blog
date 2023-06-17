@@ -24,7 +24,7 @@ export function generateMetadata({
       title,
       openGraph: {
         title,
-        url: `https://blog.lili21.me/blog/${params.id}`,
+        url: `https://blog.lili21.me/posts/${params.id}`,
         images: [`https://blog.lili21.me/og?title=${title}`],
       },
       twitter: {
