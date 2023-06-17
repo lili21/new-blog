@@ -1,7 +1,7 @@
 export default function About() {
   return (
     <div>
-      前端开发，目前就职于字节跳动
+      {/* 前端开发，目前就职于字节跳动 */}
       <ul>
         <li>
           <a href="https://github.com/lili21">Github</a>

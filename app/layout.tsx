@@ -22,12 +22,12 @@ export default function RootLayout({
                 height={45}
               />
             </Link>
-            <Link href="/about">About Me</Link>
+            <a href="https://github.com/lili21/new-blog" target="_blank">Github</a>
           </header>
           <main className="main">{children}</main>
         </div>
         <Analytics />
       </body>
-    </html>
+    </html >
   );
 }

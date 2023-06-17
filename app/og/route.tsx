@@ -74,7 +74,6 @@ export async function GET(request: Request) {
         </div>
         <div
           style={{
-            fontFamily: "Noto Sans SC",
             fontSize: 60,
             fontStyle: "normal",
             letterSpacing: "-0.025em",

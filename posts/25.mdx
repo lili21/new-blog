@@ -1,0 +1,231 @@
+---
+title: Remix实战 - 如何生成动态OG图
+date: 2023-06-17
+---
+
+## 什么是OG图？
+
+![image](../public/og.png)
+
+如上图所示，当我们分享链接到如FB，Twitter等三方社媒，这些网站会用爬虫访问我们的链接，并解析链接返回的[Open Graph](https://ogp.me/)，提取相关详细并展示。这些信息就存储在HTML的 _`meta`_ 标签中
+
+```html
+<meta property="og:title" content="Remix实战系列 - Streaming SSR如何提升13%的业务指标"/>
+<meta property="og:url" content="https://blog.lili21.me/posts/23"/>
+<meta property="og:image" content="https://blog.lili21.me/og?title=Remix%E5%AE%9E%E6%88%98%E7%B3%BB%E5%88%97%20-%20Streaming%20SSR%E5%A6%82%E4%BD%95%E6%8F%90%E5%8D%8713%%E7%9A%84%E4%B8%9A%E5%8A%A1%E6%8C%87%E6%A0%87"/>
+```
+
+以这个博客为例，每一篇文章的 _`og:title`_ 和 _`og:image`_ 都不一样。那要怎么处理呢？
+
+## Remix中如何设置OG
+
+Remix项目中设置OG非常简单，OG也只是一种特殊的 _`meta`_ ，Remix中每一个路由都可以定义自己的 _`meta`_
+
+```jsx
+export const meta = () => {
+  return [
+    {
+      property: 'og:title',
+      conent: 'Remix实战系列 - Streaming SSR如何提升13%的业务指标'
+    }
+  ]
+}
+```
+
+固定的 _`og:title`_ 显然无法满足我们的需求，我们可以根据 _`loader`_ 返回值设置动态的 _`og:title`_
+
+```jsx
+export const loader = async ({ params }) => {
+  const post = await getPost(params.postId);
+  return json(post)
+}
+
+export const meta = ({ data }) => {
+  return [
+    {
+      property: 'og:title',
+      conent: data.title
+    }
+  ]
+}
+```
+
+这样每篇文章都有自己的 _`og:title`_ 了
+
+## 图片怎么弄？
+
+```jsx
+export const meta = ({ data }) => {
+  return [
+    {
+      property: 'og:title',
+      conent: data.title
+    },
+    {
+      property: 'og:image',
+      content: data.image
+    }
+  ]
+}
+```
+
+难道我要给每篇文章都创建一张图片吗？
+
+## 图片动态生成方案
+
+![](https://blog.lili21.me/og?title=Remix%E5%AE%9E%E6%88%98%E7%B3%BB%E5%88%97%20-%20Streaming%20SSR%E5%A6%82%E4%BD%95%E6%8F%90%E5%8D%8713%%E7%9A%84%E4%B8%9A%E5%8A%A1%E6%8C%87%E6%A0%87)
+
+从上图可以看出，我们每篇文章都可以复用这张图，只要图片中的文字替换成每篇文章的标题即可。
+
+那是否可以根据标题动态生成这个图片呢？
+
+### Satori + resvg-js
+
+[Satori](https://github.com/vercel/satori)是一个将HTML转换为SVG的库，且支持JSX语法和大部分CSS特性
+
+```jsx
+import satori from 'satori'
+
+const svg = await satori(
+  <div style={{ color: 'black' }}>hello, world</div>,
+  {
+    width: 600,
+    height: 400,
+  },
+)
+```
+
+同时我们可以利用[resvg-js](https://github.com/yisibl/resvg-js)，将SVG转换为PNG
+
+两者结合起来，就可以实现一个图片动态生成方案
+
+```jsx app/routes/og.ts
+import satori from 'satori';
+import { Resvg } from '@resvg/resvg-js';
+
+export const loader = async ({ request }) => {
+  const url = new URL(request.url);
+  const title = url.searchParams.get('title');
+
+  const svg = await satori(
+    <div style={{ color: 'black' }}>{title}</div>,
+    {
+      width: 1200,
+      height: 630,
+    },
+  );
+
+  const resvg = new Resvg(svg, {
+    fitTo: {
+      mode: 'width',
+      value: 1200
+    }
+  });
+  const pngBuffer = resvg.render().asPng();
+
+  return new Response(pngBuffer, {
+    headers: {
+      'Content-Type': 'image/png',
+      'Cache-Control': 'public,max-age=31536000'
+    }
+  })
+}
+```
+
+我们实现了一个返回图片的资源路由，这样我们就可以通过query参数来控制图片内的文字
+
+```html
+<img src="/og?title=hello">
+```
+
+目前我们实现的版本是比较简单的，你可以根据自己的需要在图片内添加内容。
+
+结合我们之前的介绍的 _`meta`_ ，就可以实现动态OG图片了
+
+
+```jsx
+export const meta = ({ data }) => {
+  return [
+    {
+      property: 'og:title',
+      conent: data.title
+    },
+    {
+      property: 'og:image',
+      content: `/og?title=${data.title}`
+    }
+  ]
+}
+```
+
+## 遇到的问题
+
+![error](../public/og-error.png)
+
+可以看到，文字乱码了。因为Satori渲染时并一定有所有文字的字体，特别是对于中文的支持。此时就需要你把字体的数据传给他
+
+```jsx
+import satori from 'satori'
+
+const svg = await satori(
+  <div style={{ color: 'black' }}>中文测试</div>,
+  {
+    width: 600,
+    height: 400,
+    fonts: [
+      {
+        name: 'name', // 字体名字
+        data: data // 字体数据
+      }
+    ]
+  },
+)
+```
+
+而且我们没有必要加载一个字体的所有文字数据，只需要加载我们所用到的字体就可以了。
+
+```js
+async function fetchFont(text) {
+  const API = `https://fonts.googleapis.com/css2?family=Noto+Sans+SC&text=${encodeURIComponent(
+    text
+  )}`;
+
+  const css = await (
+    await fetch(API, {
+      headers: {
+        // Make sure it returns TTF.
+        "User-Agent":
+          "Mozilla/5.0 (Macintosh; U; Intel Mac OS X 10_6_8; de-at) AppleWebKit/533.21.1 (KHTML, like Gecko) Version/5.0.5 Safari/533.21.1",
+      },
+    })
+  ).text();
+
+  const resource = css.match(
+    /src: url\((.+)\) format\('(opentype|truetype)'\)/
+  );
+
+  if (!resource) return null;
+
+  const res = await fetch(resource[1]);
+
+  return res.arrayBuffer();
+}
+
+const fontData = await fetchFont('中文测试');
+
+const svg = await satori(
+  <div style={{ color: 'black' }}>中文测试</div>,
+  {
+    width: 600,
+    height: 400,
+    fonts: [
+      {
+        name: 'Noto Sans SC', // 字体名字
+        data: fontData // 字体数据
+      }
+    ]
+  },
+)
+```
+
+这样就解决了~
