@@ -17,13 +17,11 @@ li a {
   /* font-weight: 500; */
   text-decoration: none;
   color: rgb(23, 23, 23);
+
+  :hover {
+    color: rgb(14, 82, 241);
+  }
 }
-
-li em {
-  color: rgb(133, 133, 133);
-}
-
-
 
 .title a {
   /* font-size: 1.75rem; */
