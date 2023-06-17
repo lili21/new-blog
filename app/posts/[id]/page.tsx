@@ -25,11 +25,11 @@ export function generateMetadata({
       openGraph: {
         title,
         url: `https://blog.lili21.me/blog/${params.id}`,
-        images: [`/og?title=${title}`],
+        images: [`https://blog.lili21.me/og?title=${title}`],
       },
       twitter: {
         title,
-        images: [`/og?title=${title}`],
+        images: [`https://blog.lili21.me/og?title=${title}`],
       },
     };
   } else {

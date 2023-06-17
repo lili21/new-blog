@@ -1,12 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
-import { Analytics } from '@vercel/analytics/react';
+import { Analytics } from "@vercel/analytics/react";
 import "./globals.css";
-
-export const metadata = {
-  title: `lili's blog`,
-  description: "Thinking...",
-};
 
 export default function RootLayout({
   children,
