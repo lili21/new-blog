@@ -1,6 +1,6 @@
 import { defineDocumentType, makeSource } from "contentlayer/source-files";
 import { remarkCodeHike } from "@code-hike/mdx";
-import remarkMdxImages from 'remark-mdx-images'
+import remarkMdxImages from "remark-mdx-images";
 import { createRequire } from "module";
 
 const require = createRequire(import.meta.url);
@@ -35,12 +35,13 @@ export default makeSource({
   documentTypes: [Post],
   mdx: {
     remarkPlugins: [[remarkCodeHike, { theme }], remarkMdxImages],
-    esbuildOptions: options => {
+    esbuildOptions: (options) => {
       options.loader = {
         ...options.loader,
-        '.png': 'dataurl'
-      }
+        ".png": "dataurl",
+        ".jpeg": "dataurl",
+      };
       return options;
-    }
+    },
   },
 });
