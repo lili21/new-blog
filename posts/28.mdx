@@ -1,0 +1,168 @@
+---
+title: 渐进增强实践 - 表单提交
+date: 2023-07-09
+---
+
+最近一年多都在用[Remix](https://remix.run)，对其推崇的渐进增强（Progressive Enhancement）理念还是比较认可的。特别是最近几年SPA大行其道，对JS的依赖越来越重，应用的JS体积越来越大，很多应用在JS不可用的情况下就无法使用了。可能有人会问了，难道还有人会禁用JS吗？就算有也可以忽略不计吧？
+
+JS不可用不仅仅是JS被禁用了，比如JS在加载的过程中？JS加载失败？用户设备老不支持新的JS特性导致JS执行失败？等等，详细的可以参考[why not everybody has javascript](https://www.kryogenix.org/code/browser/everyonehasjs.html)
+
+从表单提交这个场景来讲， 渐进增强讲的就是在没有JS的情况下，表单提交依然成功。在此基础上，通过JS增强用户体验。今天就给大家介绍一下，浏览器原生的表单提交行为，以及渐进增长在表单提交上的实践
+
+## 回到过去
+
+既然要表单提交，我们就需要一个表单提交页面，以及一个接收表单提交的接口。我们不需要真的回到过去，用PHP来实现，我们就用大家熟悉的NodeJS来实现
+
+```js
+import express from 'express';
+import bodyParser from 'body-parser';
+
+const app = express();
+
+// Use body-parser middleware to parse incoming form data
+app.use(bodyParser.urlencoded({ extended: false }));
+
+// GET route to display the form
+app.get('/', async (req, res) => {
+  const name = await db.readName();
+  res.send(`
+    <html>
+      <body>
+        <h1>Hell, ${name}</h1>
+        <form method="POST" action="/">
+          <label for="name">Name:</label>
+          <input type="text" name="name" id="name">
+          <button type="submit">Submit</button>
+        </form>
+      </body>
+    </html>
+  `);
+});
+
+// POST route to process the form data
+app.post('/', async (req, res) => {
+  const name = req.body.name;
+  await db.writeName(name);
+  res.send(`Hello, ${name}!`);
+});
+
+// Start the server
+app.listen(3000, () => {
+  console.log('Server started on port 3000');
+});
+```
+
+上面的代码基本满足我们的要求，不过用户提交表单后的行为是不符合我们预期的，表单提交后页面内容被替换为了 _`Hello, xxx!`_ ，预期页面内容保持不见，更新后的代码如下
+
+```js
+// POST route to process the form data
+app.post('/', (req, res) => {
+  const name = req.body.name;
+  await db.writeName(name);
+  res.send(`
+    <html>
+      <body>
+        <h1>Hell, ${name}</h1>
+        <form method="POST" action="/">
+          <label for="name">Name:</label>
+          <input type="text" name="name" id="name">
+          <button type="submit">Submit</button>
+        </form>
+      </body>
+    </html>
+  `);
+});
+```
+
+不过这还有一个问题，在用户提交表单后，如果用户刷新页面，表单会被再提交一遍。我们可以通过PRG来解决该问题
+
+## PRG
+
+PRG是Post/Redirect/Get的缩写，是一种常用的Web应用程序开发设计模式，用于防止重复表单提交并改善用户体验
+
+在PRG模式中，当表单被提交后，服务器处理数据，然后使用HTTP302状态码发出一个重定向到一个新的URL。新的URL通常对应于成功或确认页面。然后，浏览器向新的URL发出GET请求，显示成功或确认页面给用户
+
+这个模式有助于防止用户通过刷新页面或使用后退按钮而意外地提交相同的表单多次。它还确保浏览器的后退按钮将用户带回到上一页，而不是尝试重新提交表单
+
+更新后的代码如下，我们不需要重定向到其他页面，只需要重定向到当前页面即可
+
+```js
+// POST route to process the form data
+app.post('/', (req, res) => {
+  const name = req.body.name;
+  await db.writeName(name);
+  res.redirect('/');
+});
+```
+
+## 渐进增强
+
+我们现在通过JS来增强用户体验，主要点在于表单提交后，在不刷新页面的前提下更新页面内容。代码如下
+
+```js focus=12:27
+app.get('/', async (req, res) => {
+  const name = await db.readName();
+  res.send(`
+    <html>
+      <body>
+        <h1>Hello, ${name}</h1>
+        <form method="POST" action="/">
+          <label for="name">Name:</label>
+          <input type="text" name="name" id="name">
+          <button type="submit">Submit</button>
+        </form>
+        <script>
+          document.querySelector('form').addEventListener('submit', async e => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+
+            const res = await fetch('/', {
+              method: 'POST',
+              body: new URLSearchParams(formData)
+            })
+
+            const result = await res.json();
+
+            // update dom based on result;
+            document.querySelector('h1').innerText = 'Hello, ' + result.name;
+          })
+        </script>
+      </body>
+    </html>
+  `);
+});
+```
+
+需要注意两个地方
+
+1. 我们不使用 _`json`_ 来传输数据，而是 _`URLSearchParams`_ ，这是为了和浏览器默认的表单提交行为保持一致。这就保证了有没有JS，都能提交表单，而服务端收到的数据是一样的，不需要两套数据处理逻辑
+
+2. _`res.json()`_ 执行的时候会报错，原因在于当前表单提交接口返回的是302重定向。所以这里为了满足JS直接从接口拿到返回值，我们需要做一下区分
+
+
+```js
+// script
+const res = await fetch('/?_data', {
+  method: 'POST',
+  body: new URLSearchParams(formData)
+})
+```
+
+我们通过JS提交表单时可以在路径上加上 _`?_data`_，便于后端区分是浏览器原生的表单提交，还是JS增强后的表单提交
+
+```js
+// POST route to process the form data
+app.post('/', (req, res) => {
+  const name = req.body.name;
+  await db.writeName(name);
+  if (req.query._data !== undefined) {
+    res.json({ name });
+  } else {
+    res.redirect('/');
+  }
+});
+```
+
+然后在服务端返回不同的结果~
+
+<CodeSandbox id="suspicious-ride-f9yd6z" />
