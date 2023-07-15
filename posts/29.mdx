@@ -1,0 +1,80 @@
+---
+title: 踩坑小记 - Remix表单提交导致接口超时
+date: 2023-07-15
+---
+
+最近我们有个项目的表单提交用的是Remix提供的 _`<Form />`_ 来实现的。这样就有了渐进增强的能力 - 即使JS还在加载中，Hydration还没完成，用户依然可以正常的提交表单。但上线后却发现，服务端日志里有蛮多接口超时的报错
+
+```bash
+Error FetchError: Network timeout at ....
+```
+
+详细排查日志后发现，这些超时的请求有几个共性
+
+- 都是在POST接口之后
+- POST和GET接口是一个调用链
+
+## 为什么POST接口之后有GET接口
+
+这个是Remix的特性，表单提交之后会做一次Data revalidate，也就是重新请求一次当前路由的所有 _`loader`_ ，保证页面上展示的内容和表单提交后的数据是一致的
+
+## 为什么POST接口之后有GET接口
+
+正常情况来讲，表单提交是一个请求，即POST请求。表单提交成功后，浏览器再发起GET请求，用来请求当前路由的 _`loader`_ 。这些请求都是独立的，不应该在同一个调用链上。
+
+除非表单提交是浏览器原生的表单提交，也就是JS还在加载中，用户就提交了表单。此时Remix会在服务端处理完表单提交后，即开始重新调用 _`loader`_，渲染HTML，返回给浏览器。在这种情况下，POST和GET确实是同一个调用链上的 - 浏览器只发起了一个POST请求，后续的GET是在服务端发起的
+
+## 为什么会导致超时呢？
+
+```js
+import fetch from 'node-fetch'
+import { json } from '@remix-run/node'
+
+export const loader = async ({ request }) => {
+  const res = await fetch('/backend/api', {
+    headers: request.headers
+  })
+  const data = await res.json();
+  return json(data)
+}
+```
+
+以上就是 _`loader`_ 代码的示例。经过排查后发现，问题就出在这个 _`headers`_ 上。由于浏览器发起的请求是POST，会带有 _`Content-Length`_ 请求头，此时我们直接用这个请求头去调用其他GET接口，就会导致 _`Content-Length`_ 不对，从而导致超时
+
+我们可以用以下代码复现
+
+```js
+// node-fetch v2版本
+import fetch from 'node-fetch'
+
+fetch('https://dog.ceo/api/breeds/image/random?a=1&b=2&c=3', {
+  method: 'GET',
+  headers: {
+    'Content-Length': 89
+  },
+  timeout: 5000
+}).then(async res => {
+  console.log(await res.json())
+}).catch(e => {
+  console.log(e)
+})
+```
+
+把 _`Content-Length`去掉，就可以调用成功了。
+
+
+## 如何调试NodeJS源码
+
+我还蛮想看一下底层原理的。 _`node-fetch`_ 底层用的是NodeJS的http/https模块来发起请求的。花了一些时间来阅读和调试NodeJS源码，但还是没有 _`Content-Length`_ 的处理逻辑。不过也学到了一下调试NodeJS的方法，分享给大家
+
+#### NODE_DEBUG环境变量
+
+在运行nodejs时，你可以通过设置 _`NODE_DEBUG`_ 环境变量，来控制nodejs内部模块debug日志的输出。
+
+比如 _`NODE_DEBUG=http,https node index.js`_ ，就会输出http/https模块的debug日志。你也可以将其设置为 _`*`_ 来输出所有模块的debug日志
+
+### 本地构建nodejs
+
+nodejs内部模块的debug日志可能无法满我们的要求，我们可以把nodejs仓库拉下来，添加我们自己的日志，并根据nodejs文档在本地打包构建nodejs
+
+然后用打包出来的node运行我们的代码就可以了
