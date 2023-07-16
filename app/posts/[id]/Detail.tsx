@@ -39,7 +39,7 @@ export default function Detail({ post }: { post: Post }) {
 
     return () => {
       scriptEl.remove();
-      document.querySelector('.utterances').remove();
+      document.querySelector('.utterances')?.remove();
     }
   }, []);
   return (

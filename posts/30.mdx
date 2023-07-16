@@ -1,0 +1,297 @@
+---
+title: Langchain学习 - Prompt和Parser
+date: 2023-07-16
+---
+
+随着ChatGPT的发布，AI，LLM，GPT领域成为了热点。而Langchain这个库也吸引了越来越多人的目光，Star数量水涨船高。
+
+![](../public/30/langchain-star-history.png)
+
+刚好DeepLearning最近发布了[Langchain课程](https://learn.deeplearning.ai/langchain/lesson/1/introduction)，不过课程内用的是Python，对前端开发者不是很友好。所以我计划用JS实现一遍课程内的内容，记录遇到的问题，算是学习笔记了。废话不多说，第一讲开始
+
+## 案例
+
+假设你收到一份客户发来的邮件，邮件可能是用其他语言写的。
+
+```js
+const customEmail = `
+  Arrr, I be fuming that me blender lid
+  flew off and splattered me kitchen walls
+  with smoothie! And to make matters worse,
+  the warranty don't cover the cost of
+  cleaning up me kitchen. I need yer help
+  right now, matey!
+`
+```
+
+我们可以用OpenAI将其翻译成美式英语，以一种平静且尊重的语气
+
+```js
+const style = `
+  American English
+  in a calm and respectful tone
+`
+```
+
+我们可以用下面的prompt和OpenAI打交道
+
+```js
+const prompt = `
+  Translate the text
+  that is delimited by double quote
+  into a style that is ${style}.
+  text: "${customEmail}"
+`
+```
+
+最后我们来调用OpenAI API来完成翻译任务。我们先用 _`openai`_ 这个库来实现
+
+```js
+import OpenAI from "openai"; // openai v4
+import { HttpsProxyAgent } from "https-proxy-agent";
+import "dotenv/config";
+
+// 在国内，需要加上翻墙代理才能调用成功
+const agent = new HttpsProxyAgent("http://localhost:8001");
+
+export const openai = new OpenAI({
+  apiKey: process.env["OPENAI_API_KEY"],
+  httpAgent: agent,
+});
+
+async function main() {
+  const completion = await openai.chat.completions.create({
+    model: "gpt-3.5-turbo",
+    messages: [{ role: "user", content: prompt }],
+    temperature: 0,
+  });
+
+  console.log(completion.choices[0].message);
+}
+main()
+```
+
+来看一下用Langchain实现的话要怎么做
+
+```js
+import { ChatOpenAI } from "langchain/chat_models/openai";
+import { HttpsProxyAgent } from 'https-proxy-agent'
+import 'dotenv/config';
+
+const chat = new ChatOpenAI({ temperature: 0, openAIApiKey: process.env.OPENAI_API_KEY }, {
+  baseOptions: {
+    httpsAgent: new HttpsProxyAgent('http://localhost:8001')
+  }
+});
+```
+
+相比于我们之前用模板字符串的方式来做prompt的拼接，Langchain提供了对promp模板的封装
+
+```js
+import { ChatPromptTemplate, HumanMessagePromptTemplate } from 'langchain/prompts'
+const templateString = `
+  Translate the text
+  that is delimited by double quote
+  into a style that is {style}.
+  text: "{text}"
+`
+
+const chatPrompt = ChatPromptTemplate.fromPromptMessages([
+  HumanMessagePromptTemplate.fromTemplate(templateString)
+])
+```
+
+我们可以直接用prompt模板来生成格式化的messages，用于和OpenAI的chat打交道
+
+```js
+const customEmail = `
+  Arrr, I be fuming that me blender lid
+  flew off and splattered me kitchen walls
+  with smoothie! And to make matters worse,
+  the warranty don't cover the cost of
+  cleaning up me kitchen. I need yer help
+  right now, matey!
+`
+
+const style = `
+  American English
+  in a calm and respectful tone
+`
+
+const messages = await chatPrompt.formatMessages({ style, text: customEmail });
+
+const response = chat.call(messages);
+
+console.log(response.content);
+```
+
+对比一下我们可以发现，Langchain相比原来的写法更简洁和方便。而且对于prompt模板的封装也更利于prompt的抽象和复用。
+
+假设我们需要将其翻译成其他的风格和语言，我们只需要用不同的 _`style`_ 调用 `chatPrompt.formatMessages` 就可以
+
+```js
+const messages = await chatPrompt.formatMessages({
+  style: `a polite tone that speaks in English Pirate`,
+  text: customEmail
+});
+```
+
+## Parser
+
+还有些场景我们期望LLM以特定的格式输出内容，比如JSON。
+
+```json
+{
+  "gift": false,
+  "delivery_days": 5,
+  "price_value": "pretty affordable!"
+}
+```
+
+假设我们要把产品评价，利用LLM格式化成上面的格式，我们可能会这么实现
+
+```js
+const customeReview = `
+  This leaf blower is pretty amazing.  It has four settings:
+  candle blower, gentle breeze, windy city, and tornado.
+  It arrived in two days, just in time for my wife's
+  anniversary present.
+  I think my wife liked it so much she was speechless.
+  So far I've been the only one using it, and I've been
+  using it every other morning to clear the leaves on our lawn.
+  It's slightly more expensive than the other leaf blowers
+  out there, but I think it's worth it for the extra features.
+`
+
+const reviewTemplate = `
+  For the following text, extract the following information:
+
+  gift: Was the item purchased as a gift for someone else?
+  Answer True if yes, False if not or unknown.
+
+  delivery_days: How many days did it take for the product
+  to arrive? If this information is not found, output -1.
+
+  price_value: Extract any sentences about the value or price,
+  and output them as a comma separated Array.
+
+  Format the output as JSON with the following keys:
+  gift
+  delivery_days
+  price_value
+
+  text: {text}
+`
+
+const chatPrompt = ChatPromptTemplate.fromPromptMessages([
+  HumanMessagePromptTemplate.fromTemplate(reviewTemplate)
+])
+
+const messages = await chatPrompt.formatMessages({ text: customeReview });
+
+const response = await chat.call(messages);
+
+console.log(response.content);
+```
+
+输出内容看起来是个JSON，但其实是一个JSON string。想要得到真正的JSON对象，我们可以用Langchain提供的Output Parser来做
+
+<CH.Section>
+
+```js
+import { StructuredOutputParser } from 'langchain/output_parsers'
+
+const reviewTemplate = `
+  For the following text, extract the following information:
+
+  gift: Was the item purchased as a gift for someone else? \
+  Answer True if yes, False if not or unknown.
+
+  delivery_days: How many days did it take for the product \
+  to arrive? If this information is not found, output -1.
+
+  price_value: Extract any sentences about the value or price,\
+  and output them as an Array.
+
+  Format the output as JSON with the following keys:
+  gift
+  delivery_days
+  price_value
+
+  text: {text}
+
+  {format_instructions}
+`
+
+const const parser = StructuredOutputParser.fromNamesAndDescriptions({
+  gift: 'Was the item purchased as a gift for someone else? Answer True if yes, False if not or unknown.',
+  delivery_days: 'How many days did it take for the product to arrive? If this information is not found, output -1.',
+  price_value: 'Extract any sentences about the value or price, and output them as an Array.'
+})
+
+const format_instructions = parser.getFormatInstructions();
+
+const messages = await chatPrompt.formatMessages({ text: customeReview, format_instructions });
+
+const response = await chat.call(messages);
+
+const output = await parser.parse(response.content);
+
+console.log(output)
+```
+
+我们先在 _`reviewTemplate`_ 底部加上了 [_`format_insturctions`_](focus://22) 变量。然后用  _`StructuredOutputParser`_ 生成 [_`format_insturctions`_](focus://25:32)
+
+最后用 [_`parser.parse`_](focus://36:38) 来解析OpenAI的输出结果，得到我们想要的格式
+
+</CH.Section>
+
+不过运行上面的代码是会报错的
+
+```bash
+ZodError: [
+  {
+    "code": "invalid_type",
+    "expected": "string",
+    "received": "boolean",
+    "path": [
+      "gift"
+    ],
+    "message": "Expected string, received boolean"
+  },
+  {
+    "code": "invalid_type",
+    "expected": "string",
+    "received": "number",
+    "path": [
+      "delivery_days"
+    ],
+    "message": "Expected string, received number"
+  },
+  {
+    "code": "invalid_type",
+    "expected": "string",
+    "received": "array",
+    "path": [
+      "price_value"
+    ],
+    "message": "Expected string, received array"
+  }
+]
+```
+
+从报错信息可以是类型不匹配导致的。我们需要用 _`zod`_ 来定义类型
+
+```js
+import { z } from 'zod'
+
+const parser = StructuredOutputParser.fromZodSchema(z.object({
+  gift: z.boolean().describe(`Was the item purchased as a gift for someone else? Answer True if yes, False if not or unknown.`),
+  delivery_days: z.string().describe(`How many days did it take for the product to arrive? If this information is not found, output -1.`),
+  price_value: z.array(z.string()).describe(`Extract any sentences about the value or price, and output them as a comma separated Array.`)
+}))
+```
+
+将 _`parser`_ 改成调用 _`StructureOutputParser.fromZodSchema`_ 方法，并用 _`zod`_ 来定义类型，就可以运行成功了
+
+将输出格式化后，我们就可以讲其作为参数调用其他LLM，形成一个调用链，构建更强大复杂的LLM应用
