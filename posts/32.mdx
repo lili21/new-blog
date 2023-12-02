@@ -1,0 +1,145 @@
+---
+title: LlamaIndex 初探 - 实现一个会议总结GPT
+date: 2023-12-02
+---
+
+公司内部总是有很多技术分享的会议，但因为时间冲突无法参加。不过这些会议一般都会有录屏，也会自动生成文字记录（字幕）。可是这些会议一般都1h+，也很难空出时间重头听到尾。可不可利用大模型的能力，自动生成会议总结呢？这样我们可以快速的了解这些会议的重点
+
+## 技术方案
+
+整个流程如下图所示
+
+![image](../public/32/fangan.png)
+
+## 难点 - Token限制
+
+大模型都是有Token限制的，比如gpt-3.5-turbo的最大token量为4096。简单讲就是也就是我们的发给大模型的Prompt字符数是有限制的。而一场1h会议，文字量肯定是超出这个限制的
+
+## 解决方案
+
+![image](../public/32/map-reduce.png)
+
+如上所示，我们可以把会议的文字记录分成一个个片段。然后对每一个片段，利用大模型生成总结。把生成的总结拼成一个新的文字记录，循环这个过程，直到最后只剩下一份总结。有点像MapReduce了
+
+## 实现 - LlamaIndex
+
+LlamaIndex是一个专门用来连接数据和大模型的框架。它提供了各种方法来处理各种各样的数据，以便于和大模型交互。而我们上面所说的解决方案，可以直接用LlamaIndex来实现
+
+```ts
+import {
+  Document,
+  SummaryIndex,
+  TreeSummarize,
+  ResponseSynthesizer
+} from 'llamaindex'
+
+const serviceContext = serviceContextFromDefaults()
+
+const treeSummarizePrompt = ({ context, query }) => {
+  return `会议内容如下.
+---------------------
+${context}
+---------------------
+根据以上会议内容, 回答以下问题.
+问题: ${query}
+回答:`
+}
+
+async function main() {
+  // 获取会议文字记录
+  const text = await getMeetingTranscript()
+
+  const document = new Document({ text })
+
+  const summaryIndex = await SummaryIndex.fromDocuments([document], {
+    serviceContext
+  })
+
+  const queryEngine = summaryIndex.asQueryEngine({
+    responseSynthesizer: new ResponseSynthesizer({
+      serviceContext,
+      responseBuilder: new TreeSummarize(serviceContext, treeSummarizePrompt)
+    })
+  })
+
+  const response = await queryEngine.query('以中文输出不少于100字的会议总结文档')
+
+  console.log(response)
+}
+```
+
+## 代码解释
+
+### 第一步 - Data Ingest
+
+```ts
+const text = await getMeetingTranscript()
+
+const document = new Document({ text })
+```
+
+从原始来源和格式中提取数据。这些数据来源可以是 API、本地文件、SQL 等等。[Llama Hub](https://llamahub.ai/)还提供了各种各样的loader，方便你来获取各种各样的数据，和LlamaIndex打通
+
+比如[飞书文档loader](https://llamahub.ai/l/feishu_docs)
+
+```python
+from llama_index import download_loader
+
+app_id="cli_slkdjalasdkjasd"
+app_secret="dskLLdkasdjlasdKK"
+doc_ids = ['HIH2dHv21ox9kVxjRuwc1W0jnkf']
+FeishuDocsReader = download_loader('FeishuDocsReader')
+loader = FeishuDocsReader(app_id, app_secret)
+documents = loader.load_data(document_ids=doc_ids)
+```
+
+[youtube字幕loader](https://llamahub.ai/l/youtube_transcript)
+
+```python
+from llama_hub.youtube_transcript import YoutubeTranscriptReader
+
+loader = YoutubeTranscriptReader()
+documents = loader.load_data(ytlinks=['https://www.youtube.com/watch?v=i3OYlaoj-BM'])
+```
+
+不过当前只有python支持，JS还不支持loader
+
+
+### 第二步 - Data Index
+
+```ts
+const summaryIndex = await SummaryIndex.fromDocuments([document], {
+  serviceContext
+})
+```
+
+数据索引，以中间表示形式构建数据，便于召回，搜索以及大模型消费。我们的场景是文本总结，所以使用了_`SummaryIndex`_。LlamaIndex还提供了 _`VectorStoreIndex`_ 来支持向量数据
+
+### 第三步 - Engine
+
+```ts
+const queryEngine = summaryIndex.asQueryEngine({
+  responseSynthesizer: new ResponseSynthesizer({
+    serviceContext,
+    responseBuilder: new TreeSummarize(serviceContext, treeSummarizePrompt)
+  })
+})
+```
+
+数据索引完成后，我们就可以以Engine的方式来调用大模型了。在这里我们可以自定义响应生成方式。我们这里用到的 _`TreeSummarize`_ 就实现了我们用来解决Token限制的方案
+
+### 最后一步 - 生成总结
+
+```ts
+const response = await queryEngine.query('以中文输出不少于100字的会议总结文档')
+```
+
+## 留两个问题读者
+
+### 数据隐私
+
+会议内容可能是涉密的，直接调用gpt-3.5这样的大模型可能不符合公司规定。能不能用私有模型呢？
+
+### 流式输出
+
+当前的 _`TreeSummarize`_ 响应是不支持流式的，如何支持流式？
