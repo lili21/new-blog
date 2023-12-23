@@ -5,8 +5,8 @@ specifiers:
   '@types/node': 18.14.6
   '@types/react': 18.0.28
   '@types/react-dom': 18.0.11
-  '@vercel/analytics': ^0.1.11
   '@vercel/og': ^0.5.7
+  '@vercel/speed-insights': ^1.0.2
   contentlayer: ^0.3.1
   date-fns: ^2.29.3
   eslint: 8.35.0
@@ -23,8 +23,8 @@ dependencies:
   '@types/node': 18.14.6
   '@types/react': 18.0.28
   '@types/react-dom': 18.0.11
-  '@vercel/analytics': 0.1.11_react@18.2.0
   '@vercel/og': 0.5.7
+  '@vercel/speed-insights': 1.0.2
   contentlayer: 0.3.1
   date-fns: 2.29.3
   eslint: 8.35.0
@@ -1074,14 +1074,6 @@ packages:
       eslint-visitor-keys: 3.4.0
     dev: false
 
-  /@vercel/analytics/0.1.11_react@18.2.0:
-    resolution: {integrity: sha512-mj5CPR02y0BRs1tN3oZcBNAX9a8NxsIUl9vElDPcqxnMfP0RbRc9fI9Ud7+QDg/1Izvt5uMumsr+6YsmVHcyuw==}
-    peerDependencies:
-      react: ^16.8||^17||^18
-    dependencies:
-      react: 18.2.0
-    dev: false
-
   /@vercel/og/0.5.7:
     resolution: {integrity: sha512-KdhPHiLodj2n0Z0yg9feF/onMPlrimhBvCRJOwTpOjvNxefBqM1VIJW5+Ou9mFSIa37Gg0DGBDAoSOJLH2FqxA==}
     engines: {node: '>=16'}
@@ -1089,6 +1081,11 @@ packages:
       '@resvg/resvg-wasm': 2.4.1
       satori: 0.10.1
       yoga-wasm-web: 0.3.3
+    dev: false
+
+  /@vercel/speed-insights/1.0.2:
+    resolution: {integrity: sha512-y5HWeB6RmlyVYxJAMrjiDEz8qAIy2cit0fhBq+MD78WaUwQvuBnQlX4+5MuwVTWi46bV3klaRMq83u9zUy1KOg==}
+    requiresBuild: true
     dev: false
 
   /acorn-jsx/5.3.2_acorn@8.8.2:
