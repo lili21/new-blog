@@ -5,7 +5,6 @@ specifiers:
   '@types/node': 18.14.6
   '@types/react': 18.0.28
   '@types/react-dom': 18.0.11
-  '@vercel/analytics': ^0.1.11
   '@vercel/og': ^0.5.7
   '@vercel/speed-insights': ^1.0.2
   contentlayer: ^0.3.1
@@ -24,7 +23,6 @@ dependencies:
   '@types/node': 18.14.6
   '@types/react': 18.0.28
   '@types/react-dom': 18.0.11
-  '@vercel/analytics': 0.1.11_react@18.2.0
   '@vercel/og': 0.5.7
   '@vercel/speed-insights': 1.0.2
   contentlayer: 0.3.1
@@ -1074,14 +1072,6 @@ packages:
     dependencies:
       '@typescript-eslint/types': 5.58.0
       eslint-visitor-keys: 3.4.0
-    dev: false
-
-  /@vercel/analytics/0.1.11_react@18.2.0:
-    resolution: {integrity: sha512-mj5CPR02y0BRs1tN3oZcBNAX9a8NxsIUl9vElDPcqxnMfP0RbRc9fI9Ud7+QDg/1Izvt5uMumsr+6YsmVHcyuw==}
-    peerDependencies:
-      react: ^16.8||^17||^18
-    dependencies:
-      react: 18.2.0
     dev: false
 
   /@vercel/og/0.5.7:
