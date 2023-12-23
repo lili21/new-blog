@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
-import { Analytics } from "@vercel/analytics/react";
+// import { Analytics } from "@vercel/analytics/react";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import "./globals.css";
 
 export default function RootLayout({
@@ -22,12 +23,14 @@ export default function RootLayout({
                 height={45}
               />
             </Link>
-            <a href="https://github.com/lili21/new-blog" target="_blank">Github</a>
+            <a href="https://github.com/lili21/new-blog" target="_blank">
+              Github
+            </a>
           </header>
           <main className="main">{children}</main>
         </div>
-        <Analytics />
+        <SpeedInsights />
       </body>
-    </html >
+    </html>
   );
 }
