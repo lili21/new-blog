@@ -22,6 +22,7 @@ export default function RootLayout({
                 height={45}
               />
             </Link>
+            <meta name="google-site-verification" content="101Rndwn3vRQVdfe0oKPxYP9s0Y7k8kzRyHvTnQECik" />
             <a href="https://github.com/lili21/new-blog" target="_blank">Github</a>
           </header>
           <main className="main">{children}</main>
