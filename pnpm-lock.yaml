@@ -5,6 +5,7 @@ specifiers:
   '@types/node': 18.14.6
   '@types/react': 18.0.28
   '@types/react-dom': 18.0.11
+  '@vercel/analytics': ^1.2.2
   '@vercel/og': ^0.5.7
   '@vercel/speed-insights': ^1.0.2
   contentlayer: ^0.3.1
@@ -23,6 +24,7 @@ dependencies:
   '@types/node': 18.14.6
   '@types/react': 18.0.28
   '@types/react-dom': 18.0.11
+  '@vercel/analytics': 1.2.2_next@13.4.19+react@18.2.0
   '@vercel/og': 0.5.7
   '@vercel/speed-insights': 1.0.2
   contentlayer: 0.3.1
@@ -1072,6 +1074,22 @@ packages:
     dependencies:
       '@typescript-eslint/types': 5.58.0
       eslint-visitor-keys: 3.4.0
+    dev: false
+
+  /@vercel/analytics/1.2.2_next@13.4.19+react@18.2.0:
+    resolution: {integrity: sha512-X0rctVWkQV1e5Y300ehVNqpOfSOufo7ieA5PIdna8yX/U7Vjz0GFsGf4qvAhxV02uQ2CVt7GYcrFfddXXK2Y4A==}
+    peerDependencies:
+      next: '>= 13'
+      react: ^18 || ^19
+    peerDependenciesMeta:
+      next:
+        optional: true
+      react:
+        optional: true
+    dependencies:
+      next: 13.4.19_biqbaboplfbrettd7655fr4n2y
+      react: 18.2.0
+      server-only: 0.0.1
     dev: false
 
   /@vercel/og/0.5.7:
@@ -3948,6 +3966,10 @@ packages:
     hasBin: true
     dependencies:
       lru-cache: 6.0.0
+    dev: false
+
+  /server-only/0.0.1:
+    resolution: {integrity: sha512-qepMx2JxAa5jjfzxG79yPPq+8BuFToHd1hm7kI+Z4zAq1ftQiP7HcxMhDDItrbtwVeLg/cY2JnKnrcFkmiswNA==}
     dev: false
 
   /shebang-command/2.0.0:
