@@ -1,0 +1,144 @@
+---
+title: RSC解密系列 - 壹 - 项目初始化
+date: 2024-04-15
+---
+
+由于我们不计划使用vite，webpack等打包工具。我们就需要利用Node和浏览器原生的能力来搭建一个React项目
+
+## HTML
+
+```html public/index.html
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script type="importmap">
+      {
+        "imports": {
+          "react": "https://esm.sh/react@0.0.0-experimental-2b036d3f1-20240327",
+          "react-dom": "https://esm.sh/react-dom@0.0.0-experimental-2b036d3f1-20240327",
+          "react-dom/client": "https://esm.sh/react-dom@0.0.0-experimental-2b036d3f1-20240327/client"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/dist/index.js"></script>
+  </body>
+</html>
+```
+
+_`index.html`_ 是我们的入口文件。由于我们不使用打包工具，就需要在这里直接引入 _`React`_ 相关依赖。另外我们的代码是需要同时运行在Node和浏览器两个环境的，Node自带模块加载的能力，在浏览器端就需要用到 import map 来支持同样的能力。也就是这一段代码
+
+```html
+<script type="importmap">
+  {
+    "imports": {
+      "react": "https://esm.sh/react@0.0.0-experimental-2b036d3f1-20240327",
+      "react-dom": "https://esm.sh/react-dom@0.0.0-experimental-2b036d3f1-20240327",
+      "react-dom/client": "https://esm.sh/react-dom@0.0.0-experimental-2b036d3f1-20240327/client"
+    }
+  }
+</script>
+```
+
+这样代码 _`import React from 'react'`_ 就可以同时在Node和浏览器环境运行了
+
+- 在Node环境里，Node会从node_modules/中寻找react依赖加载相关代码
+- 在浏览器环境中，浏览器会根据import map配置，加载对应的资源，我们这里使用到了[esm.sh](https://esm.sh)服务，来加载 _`React`_ 相关依赖的 es module版本
+
+## Server
+
+接下来我们只需要一个Node服务来加载 _`index.html`_ 和相应的静态资源就可以了。这里我们直接使用 _`express`_ 即可
+
+```js server/app.js
+import express from "express";
+
+const PORT = process.env.PORT || 3000;
+
+const app = express();
+
+app.use("/dist", express.static("dist"));
+
+app.get("/api/band-list", async (req, res) => {
+  const bandList = await getBandList();
+  return res.json(bandList);
+});
+
+app.get("/", async (req, res) => {
+  res.set("Content-type", "text/html");
+  return res.sendFile("index.html", { root: "public" });
+});
+
+const server = app.listen(PORT, () => {
+  console.log(`http://localhost:${PORT}`);
+});
+```
+
+## JSX
+
+为了大家阅读体验，和写起组件来更方便，我们使用SWC简单的处理一下JSX语法。具体代码逻辑可参考 _`swc.js`_
+
+只做一件事情，就是处理 _`src`_ 目录里的 _`jsx`_ 文件的JSX语法糖，并输出到 _`dist`_ 目录中。浏览器就可以直接使用了
+
+## src目录
+
+组件也都非常简单，主要是 _`BandList.jsx`_ 的逻辑
+
+```jsx src/BandList.jsx
+import React, { useEffect, useState } from "react";
+
+export function BandList() {
+  const [bandList, setBandList] = useState([]);
+  useEffect(() => {
+    fetch("/api/band-list").then(async (res) => {
+      const result = await res.json();
+      setBandList(result);
+    });
+  }, []);
+  return (
+    <ul>
+      {bandList.map((band) => (
+        <li>{band}</li>
+      ))}
+    </ul>
+  );
+}
+```
+
+一个很常见的组件，在组件内调用接口获取数据，然后渲染接口返回的数据
+
+## 接口实现
+
+_`BandList.jsx`_ 组件调用了 _`/api/band-list`_ 接口。我们需要在 _`server/app.js`_ 里实现这个接口
+
+<CH.Code>
+
+```js server/app.js
+import { getBandList } from "./db/band-api.js";
+
+app.get("/api/band-list", async (req, res) => {
+  const bandList = await getBandList();
+  return res.json(bandList);
+});
+```
+
+```js server/db/band-api.js
+let BandList = ["Coldplay", "Radiohead", "Maroon 5", "BTS", "Blackpink"];
+
+const MIN_DELAY = 200;
+const MAX_DELAY = 500;
+
+export async function getBandList(
+  delay = Math.random() * (MAX_DELAY - MIN_DELAY) + MIN_DELAY,
+) {
+  await new Promise((resolve) => setTimeout(resolve, delay));
+  return BandList;
+}
+```
+
+</CH.Code>
+
+具体的代码可以参考仓库 [https://github.com/lili21/rsc](https://github.com/lili21/rsc)

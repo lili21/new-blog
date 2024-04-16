@@ -1,0 +1,19 @@
+---
+title: RSC解密系列 - 零 - 开篇
+date: 2024-04-14
+---
+
+2020年12月21日，React团队通过[Data Fetching with React Server Components](https://www.youtube.com/watch?v=TQQPAU21ZUw)第一次向大家介绍了RSC(React Server Component)
+
+2022年10月25日，NextJS 13发布，成为第一个支持RSC的React框架。一年后，NextJS 14发布，正式支持Server Actions。
+
+直到今天，距React团队向大家介绍RSC已经经过了3年多的时间，NextJS依然是唯一一个支持RSC的production ready的框架。围绕RSC，社区内也有非常多的讨论，讨论的点主要是RSC不好理解，框架绑定，不像其他特性一样可以在现有的代码仓库里直接使用，想用只能选择NextJS。
+
+不过越来越多的框架正在尝试加入RSC的支持，比如
+
+- [Remix](https://github.com/remix-run/remix/discussions/8048)
+- [RedwoodJS](https://redwoodjs.com/blog/rsc-now-in-redwoodjs)
+
+以及完全基于RSC实现的轻量框架[waku](https://waku.gg)
+
+这个系列会从零开始，搭建一个支持RSC和Server Actions的应用。不使用任何打包工具，no vite, no webpack, no Typescript。来帮助大家更好的理解RSC和Server Actions。
